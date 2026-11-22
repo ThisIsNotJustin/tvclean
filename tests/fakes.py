@@ -23,9 +23,15 @@ RESOLVE_HEADER = "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 is
 # Shape copied from the TV's `dumpsys connectivity` Wi-Fi line. Only the type and state
 # markers are kept; the addresses and SSID in the real line are deliberately left out.
 WIFI_CONNECTED_OUTPUT = (
+    "Active default network: 100\n"
+    "\n"
     "Current Networks:\n"
     "  NetworkAgentInfo{ ni{[type: WIFI[], state: CONNECTED/CONNECTED, reason: (unspecified)]}"
     "  network{100} }\n"
+    "    Requests: REQUEST:2 LISTEN:20 BACKGROUND_REQUEST:0 total:22\n"
+    "\n"
+    "Status for known UIDs:\n"
+    "  \n"
 )
 
 
@@ -187,7 +193,7 @@ class FakeAdb(Adb):
         if "android.intent.category.HOME" in args:
             return RESOLVE_HEADER + "com.amazon.tv.launcher/.ui.HomeActivity_vNext\n"
         if "android.settings.SETTINGS" in args:
-            return RESOLVE_HEADER + "com.android.settings/.Settings\n"
+            return RESOLVE_HEADER + "com.amazon.tv.launcher/.ui.SettingsActivity\n"
         name = args[-1]
         pkg = self.packages.get(name)
         if pkg is None or not pkg["installed"] or not pkg["enabled"]:

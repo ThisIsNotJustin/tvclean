@@ -43,10 +43,8 @@ def launch_component(adb: Adb, pkg: str) -> str | None:
     return resolved_component(output)
 
 
-def cold_launch_ms(adb: Adb, pkg: str) -> int | None:
-    component = launch_component(adb, pkg)
-    if component is None:
-        return None
+def time_launch(adb: Adb, pkg: str, component: str) -> int | None:
+    """Force-stop, cold-start `component`, return TotalTime in ms (None if not reported)."""
     try:
         adb.shell(f"am force-stop {pkg}")
         output = adb.shell(f"am start -W -n {component}")
@@ -54,6 +52,13 @@ def cold_launch_ms(adb: Adb, pkg: str) -> int | None:
         adb.shell("input keyevent KEYCODE_HOME")
     match = _TOTAL_TIME.search(output)
     return int(match.group(1)) if match else None
+
+
+def cold_launch_ms(adb: Adb, pkg: str) -> int | None:
+    component = launch_component(adb, pkg)
+    if component is None:
+        return None
+    return time_launch(adb, pkg, component)
 
 
 def collect_metrics(adb: Adb, sleep: Callable[[float], None] = time.sleep) -> dict:

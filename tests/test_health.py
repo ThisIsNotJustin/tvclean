@@ -57,6 +57,40 @@ def test_check_health_reports_failed_netflix_launch():
     assert any("Netflix" in p for p in check_health(adb))
 
 
+def test_check_health_reports_netflix_missing():
+    adb = FakeAdb({"com.netflix.ninja": {"enabled": False, "path": "/data/app/n.apk"}})
+    assert "Netflix has no launchable activity (missing or disabled?)" in check_health(adb)
+
+
+def test_check_health_reports_netflix_launch_incomplete():
+    adb = FakeAdb(NETFLIX, raw_outputs={"am start -W -n com.netflix.ninja/.MainActivity": "Error\n"})
+    assert "Netflix did not finish launching" in check_health(adb)
+
+
+def test_wifi_check_ignores_connected_wifi_outside_current_networks():
+    connectivity = (
+        "Current Networks:\n"
+        "  NetworkAgentInfo{ ni{[type: WIFI[], state: DISCONNECTED/DISCONNECTED]} }\n"
+        "\n"
+        "Status for known UIDs:\n"
+        "  NetworkAgentInfo{ ni{[type: WIFI[], state: CONNECTED/CONNECTED]} }\n"
+    )
+    adb = FakeAdb(NETFLIX, raw_outputs={"dumpsys connectivity": connectivity})
+    assert "Wi-Fi not connected" in check_health(adb)
+
+
+def test_wifi_check_other_network_connected_wifi_not():
+    connectivity = (
+        "Current Networks:\n"
+        "  NetworkAgentInfo{ ni{[type: ETHERNET[], state: CONNECTED/CONNECTED]} }\n"
+        "  NetworkAgentInfo{ ni{[type: WIFI[], state: DISCONNECTED/DISCONNECTED]} }\n"
+        "\n"
+        "Status for known UIDs:\n"
+    )
+    adb = FakeAdb(NETFLIX, raw_outputs={"dumpsys connectivity": connectivity})
+    assert "Wi-Fi not connected" in check_health(adb)
+
+
 def test_check_health_propagates_device_unreachable():
     adb = FakeAdb(NETFLIX)
     adb.offline = True
