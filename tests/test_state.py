@@ -7,12 +7,13 @@ from tvclean.backup import create_backup, list_backups
 from tvclean.state import DeviceState, TRACKED_SETTINGS, load_state, read_state, save_state
 
 
-def test_tracked_settings_are_the_three_animation_keys():
-    assert TRACKED_SETTINGS == (
+def test_tracked_settings_are_the_animation_and_ad_usage_keys():
+    assert TRACKED_SETTINGS[:3] == (
         "global:window_animation_scale",
         "global:transition_animation_scale",
         "global:animator_duration_scale",
     )
+    assert "secure:limit_ad_tracking" in TRACKED_SETTINGS
 
 
 def test_read_state_parses_paths_with_equals_in_dir():
@@ -29,10 +30,8 @@ def test_read_state_reads_tracked_settings_and_keeps_null():
         settings={"global/window_animation_scale": "1.0"},
     )
     s = read_state(f)
-    assert s.settings == {
+    assert s.settings == {key: "null" for key in TRACKED_SETTINGS} | {
         "global:window_animation_scale": "1.0",
-        "global:transition_animation_scale": "null",
-        "global:animator_duration_scale": "null",
     }
 
 

@@ -267,3 +267,13 @@ def test_applied_json_is_cumulative_across_runs(tmp_path):
     report = run(f, entries, tmp_path, lambda _: True, now=now)
     assert report.outcomes[0].status == "skipped-missing"
     assert read_applied(tmp_path)["packages"] == [extra]
+
+
+def test_debloat_applies_tweaks_before_first_batch(tmp_path):
+    f = device(5)
+
+    run(f, safe_entries(5), tmp_path, lambda _: True)
+
+    first_tweak = f.calls.index("settings put global window_animation_scale 0.5")
+    first_disable = next(i for i, c in enumerate(f.calls) if c.startswith("pm disable-user"))
+    assert first_tweak < first_disable

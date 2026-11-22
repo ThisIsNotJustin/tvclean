@@ -8,6 +8,13 @@ TRACKED_SETTINGS: tuple[str, ...] = (
     "global:window_animation_scale",
     "global:transition_animation_scale",
     "global:animator_duration_scale",
+    # Ad tracking limits and usage upload toggles, confirmed present on the TV (read-only check).
+    "secure:limit_ad_tracking",
+    "secure:amz_limit_ad_tracking",
+    "secure:non_amz_limit_ad_tracking",
+    "secure:USAGE_METRICS_UPLOAD_ENABLED",
+    "secure:pact_usage_collection_enabled",
+    "secure:usage_metrics_marketing_enabled",
 )
 
 

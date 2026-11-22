@@ -138,6 +138,9 @@ class FakeAdb(Adb):
         if args[:1] == ["settings"] and args[1:2] == ["put"]:
             self.settings[f"{args[2]}/{args[3]}"] = args[4]
             return ""
+        if args[:1] == ["settings"] and args[1:2] == ["delete"]:
+            self.settings.pop(f"{args[2]}/{args[3]}", None)
+            return ""
         if args == ["cat", "/proc/meminfo"]:
             return f"MemTotal:        1500000 kB\nMemAvailable:   {self.mem_available_kb} kB\n"
         if args[:3] == ["cmd", "package", "resolve-activity"]:

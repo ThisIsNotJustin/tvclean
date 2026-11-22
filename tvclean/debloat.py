@@ -12,6 +12,7 @@ from tvclean.catalog import Entry, select
 from tvclean.health import check_health
 from tvclean.metrics import collect_metrics
 from tvclean.state import read_state
+from tvclean.tweaks import apply_tweaks
 
 APPLIED_FILE = "applied.json"
 UNDONE_STATUSES = ("done", "skipped-already")
@@ -90,6 +91,8 @@ def run_debloat(
 ) -> Report:
     metrics_before = measure(adb)
     backup = create_backup(adb, root, now(), metrics=metrics_before)
+    for key, (old, new_value) in apply_tweaks(adb).items():
+        log(f"Tweak {key}: {old} -> {new_value}")
     state = read_state(adb)
 
     outcomes: list[Outcome] = []
