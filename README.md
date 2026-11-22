@@ -34,6 +34,8 @@ Each run that changes the TV takes a backup first, in `backups/`.
 
 Debloat starts by showing its plan, for example `120 packages in 12 batches → 12 reboots (about 60 minutes)`, and asks `Start? [y/N]`. `--yes` skips that question and the per-batch ones. The run first reboots the TV once so the baseline is measured on a freshly started TV. Then each batch goes like this: disable the packages, reboot, wait 45 seconds, run the health checks (retried up to three times), and ask you to check the TV. The check covers the remote, the picture, Home and Settings, switching to an HDMI input and back, search from Home, and opening one app. Answer `y` if all of that works. If not, that batch is undone.
 
+After each reboot the TV may stop accepting adb until you turn ADB debugging off and on again. When that happens tvclean tells you what to do: on the TV, go to Settings → My Fire TV → Developer options and switch ADB debugging off, then on. Then press Enter in the terminal to carry on, or type `q` to stop. This also happens with `--yes`.
+
 Progress is printed as each phase starts. When a run ends, it prints any package that was refused or failed, the packages that were undone, and the memory and Netflix/YouTube/Disney+ launch times before and after. Each backup also gets a `report.json` with the outcome of every package and the same numbers.
 
 Pressing Ctrl-C stops the run. It prints the backup name, and `tvclean restore` undoes the run.

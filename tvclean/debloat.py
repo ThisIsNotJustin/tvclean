@@ -25,6 +25,12 @@ SETTLE_S = 45
 HEALTH_ATTEMPTS = 3
 HEALTH_RETRY_S = 30
 MINUTES_PER_BATCH = 5
+RECONNECT_PROMPT = (
+    "The TV isn't accepting adb after the reboot (this TV turns network adb off on every restart). "
+    "When the TV's Home screen is back: Settings → My Fire TV → Developer Options → turn ADB Debugging OFF, then ON. "
+    "Then press Enter here (or type q to stop)."
+)
+RECONNECT_PROMPTS = 3
 CONFIRM_PROMPT = (
     "Batch {n} done. Check: remote works, picture OK, Home and Settings open, "
     "switch to an HDMI input and back, search from Home, open one app. All OK? [y/N]"
@@ -88,6 +94,30 @@ def _write_report(
     (backup / REPORT_FILE).write_text(json.dumps(data, indent=2) + "\n")
 
 
+def _wait_for_tv(
+    adb: Adb,
+    reconnect: Callable[[str], bool] | None,
+    wait_timeout_s: int,
+) -> None:
+    """Wait for adb after a reboot. If the TV stays off adb, ask the owner to toggle it and retry."""
+    try:
+        adb.wait_ready(timeout_s=wait_timeout_s)
+        return
+    except DeviceUnreachable as err:
+        if reconnect is None:
+            raise
+        last = err
+    for _ in range(RECONNECT_PROMPTS):
+        if not reconnect(RECONNECT_PROMPT):
+            raise last
+        try:
+            adb.wait_ready(timeout_s=wait_timeout_s)
+            return
+        except DeviceUnreachable as err:
+            last = err
+    raise last
+
+
 def _revert(
     adb: Adb,
     packages: list[str],
@@ -97,6 +127,8 @@ def _revert(
     settle_s: float,
     sleep: Callable[[float], None],
     log: Callable[[str], None],
+    reconnect: Callable[[str], bool] | None,
+    wait_timeout_s: int,
 ) -> list[str]:
     """Undo each package, then reboot. Returns detail for any undo that did not succeed."""
     failures: list[str] = []
@@ -108,7 +140,7 @@ def _revert(
             failures.append(f"{package}: {outcome.detail or outcome.status}")
     log("Rebooting (up to 4 min)…")
     adb.reboot()
-    adb.wait_ready()
+    _wait_for_tv(adb, reconnect, wait_timeout_s)
     log("Waiting for the TV to settle…")
     sleep(settle_s)
     return failures
@@ -161,6 +193,8 @@ def run_debloat(
     settle_s: float | None = None,
     health_retry_s: float | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    reconnect: Callable[[str], bool] | None = None,
+    wait_timeout_s: int = 150,
 ) -> Report:
     settle = SETTLE_S if settle_s is None else settle_s
     retry = HEALTH_RETRY_S if health_retry_s is None else health_retry_s
@@ -168,7 +202,7 @@ def run_debloat(
         # Nothing has changed yet, so the baseline is measured on a freshly booted TV.
         log("Rebooting for a clean baseline…")
         adb.reboot()
-        adb.wait_ready()
+        _wait_for_tv(adb, reconnect, wait_timeout_s)
     log("Measuring baseline (the TV will open Netflix, YouTube and Disney+ by itself)…")
     metrics_before = measure(adb)
     backup = create_backup(adb, root, now(), metrics=metrics_before)
@@ -216,12 +250,15 @@ def run_debloat(
 
             log("Rebooting (up to 4 min)…")
             adb.reboot()
-            adb.wait_ready()
+            _wait_for_tv(adb, reconnect, wait_timeout_s)
             log("Waiting for the TV to settle…")
             sleep(settle)
             problems = _health_with_retries(adb, retry_s=retry, sleep=sleep, log=log)
             if problems:
-                failures = _revert(adb, done, backup, reverted, settle_s=settle, sleep=sleep, log=log)
+                failures = _revert(
+                    adb, done, backup, reverted, settle_s=settle, sleep=sleep, log=log,
+                    reconnect=reconnect, wait_timeout_s=wait_timeout_s,
+                )
                 stopped_reason = (
                     f"Batch {number} failed health check ({'; '.join(problems)}); batch reverted."
                 )
@@ -230,7 +267,10 @@ def run_debloat(
                 break
 
             if not confirm(CONFIRM_PROMPT.format(n=number)):
-                failures = _revert(adb, done, backup, reverted, settle_s=settle, sleep=sleep, log=log)
+                failures = _revert(
+                    adb, done, backup, reverted, settle_s=settle, sleep=sleep, log=log,
+                    reconnect=reconnect, wait_timeout_s=wait_timeout_s,
+                )
                 stopped_reason = f"Batch {number} not confirmed by owner; batch reverted."
                 if failures:
                     stopped_reason += f" Undo incomplete: {'; '.join(failures)}."

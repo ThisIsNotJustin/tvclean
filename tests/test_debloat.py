@@ -6,7 +6,7 @@ import pytest
 
 from tvclean.catalog import Entry
 from tests.fakes import FakeAdb
-from tvclean.debloat import read_applied, run_debloat, write_applied
+from tvclean.debloat import RECONNECT_PROMPT, read_applied, run_debloat, write_applied
 
 NETFLIX = "com.netflix.ninja"
 
@@ -408,3 +408,70 @@ def test_health_reverts_only_after_three_failed_attempts(tmp_path, monkeypatch):
     assert sleeps.count(30) == 2
     assert "failed health check" in report.stopped_reason
     assert all(f.packages[f"com.example.safe{i:02d}"]["enabled"] for i in range(5))
+
+
+def reconnect_toggling(f):
+    """A reconnect that does what the owner does: flips ADB Debugging, then answers Enter."""
+    calls = []
+
+    def reconnect(prompt):
+        calls.append(prompt)
+        f.toggle_adb()
+        return True
+
+    return reconnect, calls
+
+
+def test_debloat_reconnect_prompt_after_reboot_continues(tmp_path):
+    f = device(23, adb_off_after_reboot=True)
+    reconnect, calls = reconnect_toggling(f)
+
+    report = run(f, safe_entries(23), tmp_path, lambda _: True,
+                 baseline_reboot=True, reconnect=reconnect)
+
+    assert report.stopped_reason is None
+    assert all(not f.packages[f"com.example.safe{i:02d}"]["enabled"] for i in range(23))
+    assert f.reboots == 4, "baseline plus three batches"
+    assert len(calls) == f.reboots
+    assert set(calls) == {RECONNECT_PROMPT}
+
+
+def test_debloat_reconnect_quit_stops_with_restore_hint(tmp_path):
+    f = device(23, adb_off_after_reboot=True)
+    answers = iter([False])
+
+    report = run(f, safe_entries(23), tmp_path, lambda _: True,
+                 reconnect=lambda _prompt: next(answers))
+
+    assert report.stopped_reason is not None
+    assert "tvclean restore" in report.stopped_reason
+    assert report.backup.name in report.stopped_reason
+    assert (report.backup / "report.json").is_file()
+    assert read_applied(tmp_path) is not None
+
+
+def test_debloat_reconnect_gives_up_after_three_prompts(tmp_path):
+    f = device(23, adb_off_after_reboot=True)
+    calls = []
+
+    def reconnect(prompt):
+        calls.append(prompt)
+        return True  # says it reconnected, but never flips the switch
+
+    report = run(f, safe_entries(23), tmp_path, lambda _: True, reconnect=reconnect)
+
+    assert len(calls) == 3
+    assert report.stopped_reason is not None
+    assert "tvclean restore" in report.stopped_reason
+
+
+def test_debloat_without_reconnect_keeps_old_behavior(tmp_path):
+    f = device(23, adb_off_after_reboot=True)
+    confirm_calls = []
+
+    report = run(f, safe_entries(23), tmp_path, lambda p: confirm_calls.append(p) or True)
+
+    assert report.stopped_reason is not None
+    assert "tvclean restore" in report.stopped_reason
+    assert confirm_calls == []
+    assert f.reboots == 1

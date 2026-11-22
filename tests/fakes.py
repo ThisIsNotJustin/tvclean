@@ -58,6 +58,7 @@ class FakeAdb(Adb):
         ignore_settings_writes: set[str] = frozenset(),
         split_packages: set[str] = frozenset(),
         device_name: str = "ginza",
+        adb_off_after_reboot: bool = False,
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -82,6 +83,8 @@ class FakeAdb(Adb):
         self.installed_apks: list[Path] = []
         self.reboots = 0
         self.offline = False
+        self.adb_off_after_reboot = adb_off_after_reboot
+        self.adb_off = False
 
     # Adb protocol
 
@@ -126,10 +129,16 @@ class FakeAdb(Adb):
         self.calls.append("reboot")
         self.reboots += 1
         self.offline = self.unreachable_after_reboot
+        self.adb_off = self.adb_off_after_reboot
 
     def wait_ready(self, timeout_s: int = 240) -> None:
-        if self.offline:
+        if self.offline or self.adb_off:
             raise DeviceUnreachable(f"not ready after {timeout_s}s")
+
+    def toggle_adb(self) -> None:
+        """The owner flips ADB Debugging off and on on the TV: network adb listens again."""
+        self.calls.append("toggle_adb")
+        self.adb_off = False
 
     # Command simulation
 

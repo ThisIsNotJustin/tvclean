@@ -34,6 +34,17 @@ def _ask(input_fn: Callable[[str], str], prompt: str) -> bool:
     return answer.strip().lower().startswith("y")
 
 
+def _reconnect(input_fn: Callable[[str], str]) -> Callable[[str], bool]:
+    """After a reboot the owner toggles ADB Debugging by hand. Enter retries; q stops; end of input stops."""
+    def reconnect(prompt: str) -> bool:
+        try:
+            answer = input_fn(f"{prompt} ")
+        except EOFError:
+            return False
+        return not answer.strip().lower().startswith("q")
+    return reconnect
+
+
 def _wrong_device(adb) -> str | None:
     """Refuse to change anything unless the connected device is the TV this tool was built for."""
     actual = adb.shell("getprop ro.product.device").strip()
@@ -208,6 +219,7 @@ def main(
             root=root,
             confirm=confirm,
             tweaks=not args.no_tweaks,
+            reconnect=_reconnect(input_fn),
         )
         for line in _debloat_lines(report):
             print(line)

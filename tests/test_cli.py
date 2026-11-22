@@ -21,7 +21,7 @@ def catalog_and_no_settle(monkeypatch):
     monkeypatch.setattr(debloat, "HEALTH_RETRY_S", 0)
 
 
-def device() -> FakeAdb:
+def device(**kwargs) -> FakeAdb:
     return FakeAdb(
         {
             "com.safe": {"enabled": True, "path": "/system/app/s/s.apk"},
@@ -32,6 +32,7 @@ def device() -> FakeAdb:
             NETFLIX: {"enabled": True, "path": "/data/app/netflix/base.apk"},
         },
         raw_outputs={"getprop ro.build.version.name": "Fire OS 7.6.0.1\n"},
+        **kwargs,
     )
 
 
@@ -307,3 +308,37 @@ def test_cli_connects_once_at_startup(tmp_path, capsys):
     run_cli(["status"], f, tmp_path, capsys)
 
     assert Spy.connects == 1
+
+
+def test_cli_debloat_reconnect_prompt_reads_enter_and_q(tmp_path, capsys):
+    f = device(adb_off_after_reboot=True)
+    answers = iter(["", "q"])
+    prompts = []
+
+    def input_fn(prompt):
+        prompts.append(prompt)
+        f.toggle_adb()  # the owner flips ADB Debugging before answering
+        return next(answers)
+
+    code, _, err = run_cli(["debloat", "--yes"], f, tmp_path, capsys, input_fn=input_fn)
+
+    assert code == 1
+    assert len(prompts) == 2, "baseline reboot, then the first batch's reboot"
+    assert all(debloat.RECONNECT_PROMPT in p for p in prompts)
+    assert "tvclean restore" in err
+
+
+def test_cli_debloat_reconnect_enter_continues_exit_0(tmp_path, capsys):
+    f = device(adb_off_after_reboot=True)
+    prompts = []
+
+    def input_fn(prompt):
+        prompts.append(prompt)
+        f.toggle_adb()
+        return ""
+
+    code, _, err = run_cli(["debloat", "--yes"], f, tmp_path, capsys, input_fn=input_fn)
+
+    assert code == 0, err
+    assert prompts and len(prompts) == f.reboots
+    assert all(debloat.RECONNECT_PROMPT in p for p in prompts)
