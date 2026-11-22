@@ -1,7 +1,7 @@
-# tvclean: Fire TV debloat + custom home screen design
+# tvclean Plan
 
 Date: 2026-11-21
-Status: awaiting owner approval (builder check done)
+Status: approved by owner 2026-11-21
 
 ## 1. Intent
 
@@ -25,7 +25,7 @@ The owner's 75" Insignia Fire TV has slowed down until it's nearly unusable. Pre
 **Goals**
 - Measurably more free memory and faster app launches after Phase 1
 - Home button leads to the custom home screen (Phase 2)
-- Custom home matches mockup B v2 (`docs/superpowers/specs/assets/home-b-v2.html`). The mockup sets the look (proportions, hierarchy, style). Section 6.3 sets behavior. Where they differ, 6.3 wins. Exact sizes and spacing are the builder's, judged on the real TV
+- Custom home matches mockup B v2 (`docs/mockups/home-b-v2.html`). The mockup sets the look (proportions, hierarchy, style). Section 6.3 sets behavior. Where they differ, 6.3 wins. Exact sizes and spacing are the builder's, judged on the real TV
 - Every change is reversible from the Mac with one command
 
 **Non-goals**
