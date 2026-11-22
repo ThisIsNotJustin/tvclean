@@ -96,3 +96,25 @@ def test_check_health_propagates_device_unreachable():
     adb.offline = True
     with pytest.raises(DeviceUnreachable):
         check_health(adb)
+
+
+def test_wifi_check_handles_crlf_line_endings():
+    connectivity = (
+        "Current Networks:\r\n"
+        "  NetworkAgentInfo{ ni{[type: WIFI[], state: CONNECTED/CONNECTED]} }\r\n"
+        "\r\n"
+        "Status for known UIDs:\r\n"
+    )
+    adb = FakeAdb(NETFLIX, raw_outputs={"dumpsys connectivity": connectivity})
+    assert check_health(adb) == []
+
+
+def test_wifi_check_header_with_trailing_whitespace_and_crlf():
+    connectivity = (
+        "Current Networks: \r\n"
+        "  NetworkAgentInfo{ ni{[type: WIFI[], state: CONNECTED/CONNECTED]} }\r\n"
+        "\r\n"
+        "Status for known UIDs:\r\n"
+    )
+    adb = FakeAdb(NETFLIX, raw_outputs={"dumpsys connectivity": connectivity})
+    assert check_health(adb) == []

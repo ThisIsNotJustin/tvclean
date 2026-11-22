@@ -20,9 +20,11 @@ def current_networks_section(connectivity: str) -> list[str]:
     outside it, such as a stale network line in a later section, is ignored.
     """
     lines = connectivity.splitlines()
-    try:
-        start = lines.index(CURRENT_NETWORKS_HEADER) + 1
-    except ValueError:
+    start = next(
+        (i + 1 for i, line in enumerate(lines) if line.strip() == CURRENT_NETWORKS_HEADER),
+        None,
+    )
+    if start is None:
         return []
     section: list[str] = []
     for line in lines[start:]:
