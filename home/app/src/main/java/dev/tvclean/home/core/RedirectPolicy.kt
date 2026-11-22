@@ -5,7 +5,6 @@ class RedirectPolicy(private val now: () -> Long) {
     private var pausedUntil = 0L
     private var inSession = false
     private var sessionStart = 0L
-    private var armed = false
 
     fun pauseFor(ms: Long) {
         pausedUntil = now() + ms
@@ -17,7 +16,11 @@ class RedirectPolicy(private val now: () -> Long) {
     fun startLinkSession() {
         inSession = true
         sessionStart = now()
-        armed = false
+    }
+
+    /** The delayed tab link was actually sent: restart the grace window. */
+    fun renewGrace() {
+        if (inSession) sessionStart = now()
     }
 
     fun inLinkSession(): Boolean = inSession
@@ -31,12 +34,7 @@ class RedirectPolicy(private val now: () -> Long) {
     }
 
     fun onLauncherFocus(viewId: String?): Boolean {
-        if (!inSession || viewId == null) return false
-        if (viewId != AMAZON_HOME_TAB_ID) {
-            armed = true
-            return false
-        }
-        if (!armed || inGrace() || isPaused()) return false
+        if (!inSession || viewId != AMAZON_HOME_TAB_ID || inGrace() || isPaused()) return false
         inSession = false
         return true
     }

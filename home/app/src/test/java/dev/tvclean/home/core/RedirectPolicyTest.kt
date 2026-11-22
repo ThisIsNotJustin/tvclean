@@ -34,32 +34,37 @@ class RedirectPolicyTest {
         assertFalse(policy.inLinkSession())
     }
 
-    @Test fun homeTabFocusAfterArmingRedirects() {
+    @Test fun homeTabFocusAfterGraceRedirects() {
         policy.startLinkSession()
-        t = 500
+        t = 2_499
         assertFalse(policy.onLauncherFocus(AMAZON_HOME_TAB_ID))
-        t = 1_000
-        assertFalse(policy.onLauncherFocus("some-tile"))
-        t = 3_000
+        t = 2_500
         assertTrue(policy.onLauncherFocus(AMAZON_HOME_TAB_ID))
         assertFalse(policy.inLinkSession())
     }
 
-    @Test fun homeTabFocusInsideGraceIgnored() {
+    @Test fun renewGraceExtendsWindow() {
         policy.startLinkSession()
-        t = 100
-        assertFalse(policy.onLauncherFocus("some-tile"))
-        t = 2_000
-        assertFalse(policy.onLauncherFocus(AMAZON_HOME_TAB_ID))
-        assertTrue(policy.inLinkSession())
+        t = 1_900
+        policy.renewGrace()
+        t = 4_399
+        assertFalse(policy.onAmazonHomeWindow())
+        t = 4_400
+        assertTrue(policy.onAmazonHomeWindow())
+    }
+
+    @Test fun renewGraceOutsideSessionIsNoop() {
+        policy.renewGrace()
+        assertFalse(policy.inLinkSession())
+        assertTrue(policy.onAmazonHomeWindow())
     }
 
     @Test fun focusOutsideSessionIgnored() {
         assertFalse(policy.onLauncherFocus(AMAZON_HOME_TAB_ID))
         policy.startLinkSession()
-        t = 1_000
+        t = 3_000
         assertFalse(policy.onLauncherFocus(null))
-        t = 5_000
-        assertFalse(policy.onLauncherFocus(AMAZON_HOME_TAB_ID))
+        assertFalse(policy.onLauncherFocus("some-tile"))
+        assertTrue(policy.inLinkSession())
     }
 }

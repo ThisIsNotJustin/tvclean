@@ -26,9 +26,7 @@ class RedirectService : AccessibilityService() {
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 if (!policy.inLinkSession()) return
-                val id = rootInActiveWindow
-                    ?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-                    ?.viewIdResourceName
+                val id = focusedViewId(rootInActiveWindow, 0)
                 if (policy.onLauncherFocus(id)) {
                     redirect("home tab")
                     updateEventTypes()
@@ -58,6 +56,16 @@ class RedirectService : AccessibilityService() {
         )
     }
 
+    /** First focused node with a view id. findFocus only returns the host view, not the Compose nodes. */
+    private fun focusedViewId(node: AccessibilityNodeInfo?, depth: Int): String? {
+        if (node == null || depth > MAX_DEPTH) return null
+        if (node.isFocused) node.viewIdResourceName?.let { return it }
+        for (i in 0 until node.childCount) {
+            focusedViewId(node.getChild(i), depth + 1)?.let { return it }
+        }
+        return null
+    }
+
     private fun updateEventTypes() {
         val info = serviceInfo ?: return
         var types = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
@@ -70,5 +78,6 @@ class RedirectService : AccessibilityService() {
 
     private companion object {
         const val TAG = "TVHOME"
+        const val MAX_DEPTH = 30
     }
 }

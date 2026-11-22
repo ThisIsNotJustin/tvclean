@@ -25,6 +25,7 @@ object AmazonNavigator {
                 app.startActivity(amazonHomeIntent())
                 Handler(Looper.getMainLooper()).postDelayed({
                     try {
+                        Redirect.policy.renewGrace()
                         app.startActivity(linkIntent(page))
                     } catch (e: ActivityNotFoundException) {
                         fallback(app, page, e)
