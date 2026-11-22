@@ -214,6 +214,9 @@ def main(
             print(BUILD_HINT, file=sys.stderr)
             return 1
         if args.command == "home" and args.home_command == "apps":
+            if not args.file.is_file():
+                print(f"apps.json not found: {args.file}", file=sys.stderr)
+                return 1
             try:
                 validate_apps(args.file.read_text())
             except ValueError as err:

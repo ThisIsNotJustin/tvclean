@@ -507,3 +507,37 @@ def test_feature_updates_on_does_not_offer_reboot(tmp_path, capsys):
 
     assert code == 0, err
     assert f.reboots == 0
+
+
+def test_cli_home_install_grant_failure_exits_1(tmp_path, capsys):
+    apk = tmp_path / "dev.tvclean.home.apk"
+    apk.write_bytes(b"apk")
+    f = home_tv(installed=False)
+    f.raw_outputs[f"pm grant {HOME_PKG} android.permission.WRITE_SECURE_SETTINGS"] = "Exception occurred while executing 'grant'\n"
+
+    code, _, err = run_cli(["home", "install", "--apk", str(apk)], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "Could not grant WRITE_SECURE_SETTINGS" in err
+
+
+def test_cli_home_on_ignored_write_exits_1(tmp_path, capsys):
+    f = home_tv(services="", enabled="0")
+    f.ignore_settings_writes = {"secure/enabled_accessibility_services"}
+
+    code, out, err = run_cli(["home", "on"], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "Could not turn the Home redirect on: the TV did not accept the setting." in err
+    assert "Home redirect: on" not in out
+
+
+def test_cli_home_apps_missing_file_exits_1(tmp_path, capsys):
+    f = home_tv()
+
+    code, _, err = run_cli(["home", "apps", str(tmp_path / "nope.json")], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "apps.json not found:" in err
+    assert f.pushes == []
+    assert f.calls == []

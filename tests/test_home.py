@@ -4,6 +4,7 @@ import pytest
 
 from tests.fakes import FakeAdb
 from tvclean import home
+from tvclean.adb import AdbError
 from tvclean.config import REPO_ROOT
 from tvclean.home import (
     APPS_REMOTE,
@@ -187,3 +188,52 @@ def test_constants():
     assert SERVICE == "dev.tvclean.home/dev.tvclean.home.RedirectService"
     assert APPS_REMOTE == "/sdcard/Android/data/dev.tvclean.home/files/apps.json"
     assert home.DEFAULT_APK == REPO_ROOT / "home/app/build/outputs/apk/release/app-release.apk"
+
+
+def test_home_on_raises_when_the_tv_ignores_the_write():
+    f = home_device(services="a/b.C", enabled="0")
+    f.ignore_settings_writes = {ACCESSIBILITY}
+
+    with pytest.raises(AdbError, match="Could not turn the Home redirect on: the TV did not accept the setting."):
+        home_on(f)
+
+
+def test_home_off_raises_when_the_tv_ignores_the_write():
+    f = home_device(services=SERVICE, enabled="1")
+    f.ignore_settings_writes = {ACCESSIBILITY}
+
+    with pytest.raises(AdbError, match="Could not turn the Home redirect off"):
+        home_off(f)
+
+
+def test_install_grant_failure_raises_and_names_it(tmp_path):
+    apk = tmp_path / "dev.tvclean.home.apk"
+    apk.write_bytes(b"apk")
+    f = home_device(installed=False)
+    f.raw_outputs[f"pm grant {HOME_PKG} android.permission.WRITE_SECURE_SETTINGS"] = "Exception occurred while executing 'grant'\n"
+
+    with pytest.raises(AdbError, match="Could not grant WRITE_SECURE_SETTINGS"):
+        home_install(f, apk)
+
+
+def test_install_appops_failure_raises_and_names_it(tmp_path):
+    apk = tmp_path / "dev.tvclean.home.apk"
+    apk.write_bytes(b"apk")
+    f = home_device(installed=False)
+    f.raw_outputs[f"appops set {HOME_PKG} GET_USAGE_STATS allow"] = "Failure calling service appops\n"
+
+    with pytest.raises(AdbError, match="Could not allow usage access"):
+        home_install(f, apk)
+
+
+def test_install_compile_failure_only_warns(tmp_path):
+    apk = tmp_path / "dev.tvclean.home.apk"
+    apk.write_bytes(b"apk")
+    f = home_device(installed=False)
+    f.raw_outputs[f"cmd package compile -m speed -f {HOME_PKG}"] = "Error: compile failed\n"
+
+    lines = home_install(f, apk)
+
+    assert any(line.startswith("Warning: compile for speed failed") for line in lines)
+    assert lines[-1] == "Redirect on"
+    assert f.settings[ENABLED] == "1"

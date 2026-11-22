@@ -2,8 +2,9 @@
 import json
 import re
 from pathlib import Path
+from typing import NoReturn
 
-from tvclean.adb import Adb
+from tvclean.adb import Adb, AdbError
 from tvclean.config import REPO_ROOT
 
 HOME_PKG = "dev.tvclean.home"
@@ -30,31 +31,56 @@ def _write_services(adb: Adb, services: list[str], enabled: bool) -> None:
     adb.shell(f"settings put secure {ENABLED_KEY} {'1' if enabled else '0'}")
 
 
+# adb shell returns failure text (it does not raise) for pm/appops/settings errors, so
+# callers look for these words in the output.
+FAILURE_MARKERS = ("Exception", "Error", "Failure")
+
+
+def _failed_output(output: str) -> bool:
+    return any(marker in output for marker in FAILURE_MARKERS)
+
+
+def _must_succeed(output: str, what: str) -> None:
+    if _failed_output(output):
+        raise AdbError(f"{what}: {output.strip()}")
+
+
+def _apply(adb: Adb, services: list[str], enabled: bool, action: str) -> None:
+    """Write the accessibility settings, then read them back; a write the TV ignored is an error."""
+    _write_services(adb, services, enabled)
+    readback_enabled = adb.shell(f"settings get secure {ENABLED_KEY}").strip()
+    if set(_services(adb)) != set(services) or readback_enabled != ("1" if enabled else "0"):
+        raise AdbError(f"Could not turn the Home redirect {action}: the TV did not accept the setting.")
+
+
 def home_on(adb: Adb) -> None:
     services = _services(adb)
     if SERVICE not in services:
         services.append(SERVICE)
-    _write_services(adb, services, enabled=True)
+    _apply(adb, services, enabled=True, action="on")
 
 
 def home_off(adb: Adb) -> None:
     services = [s for s in _services(adb) if s != SERVICE]
-    _write_services(adb, services, enabled=bool(services))
+    _apply(adb, services, enabled=bool(services), action="off")
 
 
 def home_install(adb: Adb, apk: Path) -> list[str]:
+    """Install and set up the app. A failed grant or usage-access change raises AdbError; a failed compile only warns."""
     adb.install(apk)
-    adb.shell(f"pm grant {HOME_PKG} {WRITE_SECURE}")
-    adb.shell(f"appops set {HOME_PKG} GET_USAGE_STATS allow")
-    adb.shell(f"cmd package compile -m speed -f {HOME_PKG}")
+    lines = [f"Installed {HOME_PKG}"]
+    _must_succeed(adb.shell(f"pm grant {HOME_PKG} {WRITE_SECURE}"), "Could not grant WRITE_SECURE_SETTINGS")
+    lines.append("Granted WRITE_SECURE_SETTINGS")
+    _must_succeed(adb.shell(f"appops set {HOME_PKG} GET_USAGE_STATS allow"), "Could not allow usage access")
+    lines.append("Allowed usage access")
+    compiled = adb.shell(f"cmd package compile -m speed -f {HOME_PKG}")
+    if _failed_output(compiled):
+        lines.append(f"Warning: compile for speed failed; the app still works: {compiled.strip()}")
+    else:
+        lines.append("Compiled for speed")
     home_on(adb)
-    return [
-        f"Installed {HOME_PKG}",
-        "Granted WRITE_SECURE_SETTINGS",
-        "Allowed usage access",
-        "Compiled for speed",
-        "Redirect on",
-    ]
+    lines.append("Redirect on")
+    return lines
 
 
 def home_state(adb: Adb) -> dict:
@@ -81,7 +107,7 @@ def home_state(adb: Adb) -> dict:
     return state
 
 
-def _fail(reason: str) -> None:
+def _fail(reason: str) -> NoReturn:
     raise ValueError(reason)
 
 
