@@ -46,16 +46,18 @@ object AmazonNavigator {
     fun openAmazonHome(context: Context) {
         Redirect.policy.pauseFor(ESCAPE_PAUSE_MS)
         Redirect.onSessionChange?.invoke()
-        context.applicationContext.startActivity(amazonHomeIntent())
+        try {
+            context.applicationContext.startActivity(amazonHomeIntent())
+        } catch (e: ActivityNotFoundException) {
+            Log.i(TAG, "Amazon Home failed (${e.javaClass.simpleName})")
+        } catch (e: SecurityException) {
+            Log.i(TAG, "Amazon Home failed (${e.javaClass.simpleName})")
+        }
     }
 
     private fun fallback(context: Context, page: AmazonPage, e: Exception) {
         Log.i(TAG, "link ${page.locationId} failed (${e.javaClass.simpleName}); opening Amazon Home")
-        try {
-            openAmazonHome(context)
-        } catch (e2: RuntimeException) {
-            Log.i(TAG, "Amazon Home fallback failed (${e2.javaClass.simpleName})")
-        }
+        openAmazonHome(context)
     }
 
     private fun amazonHomeIntent() = Intent(Intent.ACTION_MAIN)
