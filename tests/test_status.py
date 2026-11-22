@@ -85,3 +85,67 @@ def test_status_unreachable_device(tmp_path):
     r = build_status(f, ENTRIES, tmp_path)
 
     assert r.connected is False
+
+
+NETFLIX = "com.netflix.ninja"
+
+
+def test_status_lists_disabled_package_names_sorted(tmp_path):
+    f = FakeAdb(
+        {
+            "com.b": {"enabled": False, "path": "/system/app/b/b.apk"},
+            "com.a": {"enabled": False, "path": "/system/app/a/a.apk"},
+            "com.c": {"enabled": True, "path": "/system/app/c/c.apk"},
+        },
+        raw_outputs={"getprop ro.build.version.name": "Fire OS 7.6.0.1\n"},
+    )
+
+    text = format_status(build_status(f, [], tmp_path))
+
+    assert "Disabled packages: 2" in text
+    assert text.index("  com.a") < text.index("  com.b")
+    assert "com.c" not in text
+
+
+def _backup_with_metrics(root, name, mem_mb, netflix_ms):
+    directory = root / name
+    directory.mkdir(parents=True)
+    (directory / "metrics.json").write_text(json.dumps({
+        "mem_available_kb": mem_mb * 1024,
+        "cold_launch_ms": {NETFLIX: netflix_ms},
+    }))
+    return directory
+
+
+def test_status_compares_first_backup_with_latest_report(tmp_path):
+    f = FakeAdb(
+        {"com.x": {"enabled": True, "path": "/system/app/x/x.apk"}},
+        raw_outputs={"getprop ro.build.version.name": "Fire OS 7.6.0.1\n"},
+    )
+    _backup_with_metrics(tmp_path, "20261121-100000", 480, 1591)
+    later = tmp_path / "20261121-110000"
+    later.mkdir()
+    (later / "report.json").write_text(json.dumps({
+        "outcomes": [], "reverted": [], "stopped_reason": None,
+        "metrics_before": {}, "metrics_after": {
+            "mem_available_kb": 640 * 1024, "cold_launch_ms": {NETFLIX: 900},
+        },
+    }))
+
+    text = format_status(build_status(f, [], tmp_path))
+
+    assert "Free memory: 480 MB → 640 MB (+160)" in text
+    assert "Netflix cold launch: 1591 ms → 900 ms" in text
+
+
+def test_status_without_report_omits_comparison(tmp_path):
+    f = FakeAdb(
+        {"com.x": {"enabled": True, "path": "/system/app/x/x.apk"}},
+        raw_outputs={"getprop ro.build.version.name": "Fire OS 7.6.0.1\n"},
+    )
+    _backup_with_metrics(tmp_path, "20261121-100000", 480, 1591)
+
+    text = format_status(build_status(f, [], tmp_path))
+
+    assert "Free memory" not in text
+    assert "Netflix cold launch" not in text
