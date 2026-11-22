@@ -45,6 +45,7 @@ class HomeActions(
     val openPage: (AmazonPage) -> Unit,
     val openMenu: () -> Unit,
     val closeMenu: () -> Unit,
+    val openAmazonHome: () -> Unit,
 )
 
 private const val TICK_MILLIS = 250L
@@ -53,6 +54,8 @@ private const val TICK_MILLIS = 250L
 fun HomeScreen(state: HomeUiState, actions: HomeActions) {
     val listState = rememberLazyListState()
     val firstTile = remember { FocusRequester() }
+    val menuButton = remember { FocusRequester() }
+    val menuFirstItem = remember { FocusRequester() }
     val carousel = remember(state.slides.size) { Carousel(state.slides.size) }
     val index = remember(carousel) { mutableIntStateOf(0) }
     val progress = remember(carousel) { mutableFloatStateOf(0f) }
@@ -88,6 +91,16 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
             firstTile.requestFocus()
         } catch (_: IllegalStateException) {
             // First tile not attached yet; the next reset or load retries.
+        }
+    }
+    // Closing the menu returns focus to the ☰ button in the nav pill.
+    var menuWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(state.menuOpen) {
+        if (state.menuOpen) {
+            menuWasOpen = true
+        } else if (menuWasOpen) {
+            menuWasOpen = false
+            menuButton.requestFocusUntil()
         }
     }
 
@@ -129,8 +142,10 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
         NavPill(
             actions.openMenu,
             actions.openPage,
+            menuButton,
             Modifier.align(Alignment.TopCenter).padding(top = 20.dp),
         )
         Clock(Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 32.dp))
+        HomeMenu(open = state.menuOpen, actions = actions, firstItem = menuFirstItem)
     }
 }

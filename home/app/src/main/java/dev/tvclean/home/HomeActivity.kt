@@ -44,6 +44,7 @@ class HomeActivity : ComponentActivity() {
             openPage = { AmazonNavigator.open(this, it) },
             openMenu = { state = state.copy(menuOpen = true) },
             closeMenu = { state = state.copy(menuOpen = false) },
+            openAmazonHome = { AmazonNavigator.openAmazonHome(this) },
         )
         setContent { HomeScreen(state, actions) }
     }

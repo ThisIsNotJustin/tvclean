@@ -14,6 +14,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,7 +38,12 @@ private val items = listOf(
 )
 
 @Composable
-fun NavPill(openMenu: () -> Unit, openPage: (AmazonPage) -> Unit, modifier: Modifier = Modifier) {
+fun NavPill(
+    openMenu: () -> Unit,
+    openPage: (AmazonPage) -> Unit,
+    menuButton: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier
             .background(NavPillColor, PillShape)
@@ -47,6 +54,7 @@ fun NavPill(openMenu: () -> Unit, openPage: (AmazonPage) -> Unit, modifier: Modi
         FocusBox(
             onClick = openMenu,
             shape = ItemShape,
+            modifier = Modifier.focusRequester(menuButton),
             focusedBackground = Color.White,
         ) { focused ->
             Column(
