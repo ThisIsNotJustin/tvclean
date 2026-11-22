@@ -45,12 +45,6 @@ tier = "safe"
 reason = "Automatic content recognition: reports what is on screen to Amazon"
 
 [[package]]
-name = "com.amazon.media.recommendations"
-action = "disable"
-tier = "safe"
-reason = "Recommendation rows on Amazon's home screen; promo, not playback"
-
-[[package]]
 name = "com.amazon.sneakpeek"
 action = "disable"
 tier = "safe"
@@ -73,12 +67,6 @@ name = "com.amazon.minitv.android.app"
 action = "disable"
 tier = "safe"
 reason = "Amazon miniTV, a free ad-supported video promo app"
-
-[[package]]
-name = "com.amazon.hybridadidservice"
-action = "disable"
-tier = "safe"
-reason = "Advertising ID service; supports ad tracking, not device function"
 
 [[package]]
 name = "com.amazon.device.crashmanager"
@@ -140,13 +128,25 @@ reason = "Minerva telemetry service that reports system metrics to Amazon"
 name = "com.amazon.device.messaging"
 action = "disable"
 tier = "moderate"
-reason = "Amazon Device Messaging push service; may break push notifications for apps that use it"
+reason = "Amazon Device Messaging (ADM) push service; may break app notifications, Appstore update notices, or account/device sync"
 
 [[package]]
 name = "com.amazon.tcomm"
 action = "disable"
 tier = "moderate"
-reason = "Amazon Communication Services background hub; may break push delivery to Amazon apps"
+reason = "Amazon communication hub for device sync, ADM and DCP traffic; may break device registration/sync, Amazon app push, or Prime Video features"
+
+[[package]]
+name = "com.amazon.media.recommendations"
+action = "disable"
+tier = "moderate"
+reason = "Supplies Home screen recommendation rows; may break those rows (they may come up empty) or continue-watching"
+
+[[package]]
+name = "com.amazon.hybridadidservice"
+action = "disable"
+tier = "moderate"
+reason = "Advertising ID service; may break or cause errors in apps that request the advertising ID"
 
 [[package]]
 name = "com.amazon.tmm.tutorial"
@@ -184,7 +184,7 @@ reason = "Mayday support screen sharing; may break Amazon support sessions only"
 name = "com.amazon.vizzini"
 action = "disable"
 feature = "alexa"
-reason = "Alexa on Fire TV; may break voice search on the remote's mic button"
+reason = "Alexa on Fire TV; powers the remote's mic button and voice search, so voice search may break, and typed or voice search from Home may also break"
 
 [[package]]
 name = "com.amazon.alexadirectivebrokerservice"
@@ -215,12 +215,6 @@ name = "com.amazon.rtcsessioncontroller"
 action = "disable"
 feature = "alexa"
 reason = "Alexa video call session controller; Alexa-only"
-
-[[package]]
-name = "com.amazon.audiohome"
-action = "disable"
-feature = "alexa"
-reason = "Alexa multi-room audio grouping; Alexa-only"
 
 [[package]]
 name = "com.amazon.tv.alexaalerts"
