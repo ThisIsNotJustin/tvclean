@@ -158,6 +158,9 @@ def _offer_airplay_restart(adb, input_fn: Callable[[str], str]) -> None:
     adb.reboot()
     _wait_for_tv(adb, _reconnect(input_fn), 150)
     print("TV restarted. AirPlay should be available now.")
+    state = home_state(adb)
+    if state["installed"]:
+        print("Home redirect: on" if state["redirect_on"] else "Home redirect: OFF (run: tvclean home on)")
 
 
 def _home(args, adb, input_fn: Callable[[str], str]) -> int:

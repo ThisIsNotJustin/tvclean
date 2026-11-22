@@ -54,7 +54,8 @@ class AppRepository(context: Context) {
             try {
                 val banner = pm.getApplicationBanner(pkg)
                 val drawable = banner ?: pm.getApplicationIcon(pkg)
-                val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+                // RGB_565: banners need no alpha, and it halves their memory.
+                val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.RGB_565)
                 val canvas = Canvas(bitmap)
                 if (banner != null) {
                     drawable.setBounds(0, 0, widthPx, heightPx)

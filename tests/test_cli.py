@@ -464,6 +464,30 @@ def test_feature_airplay_on_offers_reboot_and_restarts(tmp_path, capsys):
     assert "TV restarted. AirPlay should be available now." in out
 
 
+def test_airplay_restart_reports_home_redirect_when_installed(tmp_path, capsys):
+    f = home_tv(services=HOME_SERVICE, enabled="1")
+    airplay_off(f, tmp_path, capsys)
+    code, out, err = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=lambda p: "y")
+    assert code == 0, err
+    assert out.index("TV restarted.") < out.index("Home redirect: on")
+
+
+
+def test_airplay_restart_reports_home_redirect_off(tmp_path, capsys):
+    f = home_tv(services=None, enabled="0")
+    airplay_off(f, tmp_path, capsys)
+    code, out, err = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=lambda p: "y")
+    assert "Home redirect: OFF (run: tvclean home on)" in out
+
+
+def test_airplay_restart_says_nothing_about_home_when_not_installed(tmp_path, capsys):
+    f = home_tv(installed=False)
+    airplay_off(f, tmp_path, capsys)
+    code, out, err = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=lambda p: "y")
+    assert code == 0, err
+    assert "Home redirect" not in out
+
+
 def test_feature_airplay_on_reboot_waits_for_adb_toggle(tmp_path, capsys):
     f = device()
     airplay_off(f, tmp_path, capsys)
