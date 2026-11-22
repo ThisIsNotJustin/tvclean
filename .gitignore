@@ -1,0 +1,9 @@
+.superpowers/
+.DS_Store
+*.apk
+build/
+.gradle/
+local.properties
+backups/
+# raw device dumps contain serial/MAC
+recon/*.txt

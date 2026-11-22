@@ -1,0 +1,74 @@
+<h2>Direction B, take 2: Apple TV feel, your apps, Amazon's top nav</h2>
+<p class="subtitle">The hero cycles through your last 3 apps, 15 seconds each. Everything below the hero is just your apps. No sponsored rows, no "you may like," no recommended apps.</p>
+
+<style>
+  .tv2 { aspect-ratio:16/9; width:100%; position:relative; overflow:hidden; border-radius:10px; border:8px solid #15171c; background:#05060a; font-family:-apple-system, "SF Pro Display", system-ui, sans-serif; color:#f5f5f7; box-sizing:border-box; }
+  .tv2 * { box-sizing:border-box; }
+  .hero { position:absolute; inset:0 0 38% 0; background:
+      radial-gradient(ellipse at 75% 35%, rgba(255,255,255,.10), transparent 55%),
+      linear-gradient(120deg, #0d2a5e 0%, #123a7a 35%, #0a1630 70%, #05060a 100%); }
+  .hero::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(5,6,10,0) 45%, #05060a 100%), linear-gradient(90deg, rgba(5,6,10,.85) 0%, rgba(5,6,10,0) 55%); }
+  .nav { position:absolute; top:4%; left:50%; transform:translateX(-50%); display:flex; gap:2px; padding:4px; border-radius:999px; background:rgba(40,44,56,.55); backdrop-filter:blur(12px); font-size:11px; z-index:3; white-space:nowrap; }
+  .nav span { padding:5px 12px; border-radius:999px; opacity:.75; }
+  .nav .on { background:rgba(255,255,255,.92); color:#000; opacity:1; font-weight:600; }
+  .clock2 { position:absolute; top:5%; right:3.5%; font-size:13px; opacity:.85; z-index:3; font-weight:500; }
+  .heroText { position:absolute; left:5%; bottom:43%; z-index:2; max-width:45%; }
+  .eyebrow { display:flex; align-items:center; gap:7px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; opacity:.8; }
+  .badge { width:20px; height:20px; border-radius:5px; background:#0a2a6b; border:1px solid rgba(255,255,255,.3); display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; }
+  .title2 { font-size:30px; font-weight:700; letter-spacing:-.02em; margin:6px 0 4px; line-height:1.05; }
+  .meta { font-size:11px; opacity:.7; }
+  .prog { margin-top:8px; width:160px; height:3px; border-radius:2px; background:rgba(255,255,255,.25); }
+  .prog i { display:block; height:100%; width:62%; background:#fff; border-radius:2px; }
+  .btns { display:flex; gap:8px; margin-top:10px; }
+  .btn { padding:6px 14px; border-radius:8px; font-size:11px; font-weight:600; background:rgba(255,255,255,.18); }
+  .btn.pri { background:#fff; color:#000; }
+  .dots { position:absolute; right:5%; bottom:43%; z-index:2; display:flex; gap:6px; align-items:center; }
+  .dots b { width:6px; height:6px; border-radius:3px; background:rgba(255,255,255,.35); }
+  .dots b.on { width:28px; background:linear-gradient(90deg,#fff 60%, rgba(255,255,255,.35) 60%); }
+  .shelf { position:absolute; left:5%; right:0; bottom:7%; display:flex; gap:1.6%; z-index:2; }
+  .app { flex:0 0 13.2%; aspect-ratio:16/9; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.4); }
+  .app.f { transform:scale(1.14) translateY(-4%); box-shadow:0 18px 30px rgba(0,0,0,.7), 0 0 0 2px rgba(255,255,255,.85); z-index:2; }
+  .shelfLbl { position:absolute; left:5%; bottom:30%; font-size:10px; opacity:.55; z-index:2; letter-spacing:.04em; }
+  .strip { display:flex; gap:12px; margin-top:18px; }
+  .slide { flex:1; border-radius:8px; padding:10px 12px; font-size:12px; color:#f5f5f7; min-height:70px; display:flex; flex-direction:column; justify-content:space-between; }
+  .slide small { opacity:.7; font-size:10px; }
+</style>
+
+<div class="mockup">
+  <div class="mockup-header">Home · hero slide 1 of 3 (most recent app)</div>
+  <div class="mockup-body" style="padding:0">
+    <div class="tv2">
+      <div class="hero"></div>
+      <div class="nav"><span>☰</span><span>⌕</span><span class="on">Home</span><span>Movies</span><span>TV Shows</span><span>Live</span><span>Sports</span><span>News</span></div>
+      <div class="clock2">8:42</div>
+
+      <div class="heroText">
+        <div class="eyebrow"><span class="badge">D+</span>Continue on Disney+</div>
+        <div class="title2">Last thing you watched</div>
+        <div class="meta">S2 · E4 · 23 min left <span style="opacity:.6">(only if the app shares it; see note)</span></div>
+        <div class="prog"><i></i></div>
+        <div class="btns"><span class="btn pri">▶ Resume</span><span class="btn">Open Disney+</span></div>
+      </div>
+      <div class="dots"><b class="on"></b><b></b><b></b></div>
+
+      <div class="shelfLbl">YOUR APPS</div>
+      <div class="shelf">
+        <div class="app f" style="background:linear-gradient(135deg,#0b1f5c,#1b4fbf)">Disney+</div>
+        <div class="app" style="background:#1ce783;color:#03241a">hulu</div>
+        <div class="app" style="background:linear-gradient(135deg,#00a8e1,#146eb4)">prime video</div>
+        <div class="app" style="background:linear-gradient(135deg,#0064ff,#002f8c)">Paramount+</div>
+        <div class="app" style="background:#000;color:#e50914;border:1px solid #222">NETFLIX</div>
+        <div class="app" style="background:#fff;color:#e00">▶ YouTube</div>
+        <div class="app" style="background:#1d1d1f">YouTube TV</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="label" style="margin-top:20px">Hero rotation: 15 seconds each, then back to 1</p>
+<div class="strip">
+  <div class="slide" style="background:linear-gradient(120deg,#0d2a5e,#05060a)"><b>1 · Disney+</b><small>most recent · 0 to 15s</small></div>
+  <div class="slide" style="background:linear-gradient(120deg,#0a3d2a,#05060a)"><b>2 · Hulu</b><small>2nd most recent · 15 to 30s</small></div>
+  <div class="slide" style="background:linear-gradient(120deg,#3a0a0a,#05060a)"><b>3 · Netflix</b><small>3rd most recent · 30 to 45s</small></div>
+</div>
+<p class="subtitle" style="margin-top:14px">Scrolling right along the app row reveals HBO Max, Apple TV, then an <b>Inputs</b> tile (HDMI 1, 2, 3) at the end. Moving the remote onto the hero pauses the rotation.</p>
