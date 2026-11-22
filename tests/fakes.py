@@ -56,10 +56,18 @@ class FakeAdb(Adb):
     def pull(self, remote: str, local: Path) -> None:
         self.calls.append(f"pull {remote}")
         self.pulled.append(remote)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_bytes(b"fake apk")
 
     def install(self, apk: Path) -> None:
         self.calls.append(f"install {apk}")
         self.installed_apks.append(apk)
+        name = apk.stem
+        self.packages[name] = {
+            "enabled": True,
+            "path": f"/data/app/{name}/base.apk",
+            "installed": True,
+        }
 
     def reboot(self) -> None:
         self.calls.append("reboot")
@@ -109,16 +117,22 @@ class FakeAdb(Adb):
         return "\n".join(f"package:{n}" for n in names)
 
     def _disable(self, name: str) -> str:
+        if name not in self.packages:
+            return f"Error: Unknown package: {name}"
         if name in self.refuse_disable:
             return f"Exception occurred while executing 'disable-user': Cannot disable {name}"
         self.packages[name]["enabled"] = False
         return f"Package {name} new state: disabled-user"
 
     def _enable(self, name: str) -> str:
+        if name not in self.packages:
+            return f"Error: Unknown package: {name}"
         self.packages[name]["enabled"] = True
         return f"Package {name} new state: enabled"
 
     def _uninstall(self, name: str) -> str:
+        if name not in self.packages or not self.packages[name]["installed"]:
+            return "Failure [not installed for 0]"
         self.packages[name]["installed"] = False
         return "Success"
 
