@@ -1,0 +1,5 @@
+[[package]]
+name = "com.mediatek.tis"
+action = "disable"
+tier = "safe"
+reason = "Protected MediaTek package that must be refused"

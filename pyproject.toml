@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tvclean"
+version = "0.1.0"
+description = "Debloat a Fire TV over adb, with backup and restore"
+requires-python = ">=3.13"
+
+[project.scripts]
+tvclean = "tvclean.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["tvclean*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
