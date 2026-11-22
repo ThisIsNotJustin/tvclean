@@ -81,7 +81,7 @@ class FakeAdb(Adb):
 
     # Adb protocol
 
-    def shell(self, cmd: str) -> str:
+    def shell(self, cmd: str, timeout: float | None = None) -> str:
         self.calls.append(cmd)
         if self.offline:
             raise DeviceUnreachable("device offline")

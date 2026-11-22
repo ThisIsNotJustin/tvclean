@@ -1,6 +1,7 @@
 import pytest
 
 from tests.fakes import FakeAdb
+from tvclean import metrics
 from tvclean.adb import AdbError
 from tvclean.metrics import (
     LAUNCH_TARGETS,
@@ -69,7 +70,7 @@ def test_collect_metrics_waits_60s_before_measuring_memory():
     )
     original_shell = adb.shell
 
-    def recording_shell(cmd: str) -> str:
+    def recording_shell(cmd: str, timeout=None) -> str:
         if cmd == "cat /proc/meminfo":
             events.append("meminfo")
         return original_shell(cmd)
@@ -95,3 +96,17 @@ def test_collect_metrics_reports_none_for_unlaunchable_target():
     assert metrics["cold_launch_ms"]["com.netflix.ninja"] == 900
     assert metrics["cold_launch_ms"]["com.amazon.firetv.youtube"] is None
     assert metrics["cold_launch_ms"]["com.disney.disneyplus"] is None
+
+
+def test_time_launch_waits_up_to_180s_for_am_start():
+    seen = []
+
+    class Spy(FakeAdb):
+        def shell(self, cmd, timeout=None):
+            seen.append((cmd, timeout))
+            return super().shell(cmd, timeout)
+
+    adb = Spy({"com.netflix.ninja": {"enabled": True, "path": "/data/app/n.apk"}})
+    metrics.time_launch(adb, "com.netflix.ninja", "com.netflix.ninja/.MainActivity")
+    am_start = [t for cmd, t in seen if cmd.startswith("am start -W")]
+    assert am_start == [180]

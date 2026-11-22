@@ -2,7 +2,7 @@ import re
 import time
 from typing import Callable
 
-from tvclean.adb import Adb, AdbError
+from tvclean.adb import LAUNCH_TIMEOUT_S, Adb, AdbError
 
 LAUNCH_TARGETS: tuple[str, ...] = ("com.netflix.ninja", "com.amazon.firetv.youtube", "com.disney.disneyplus")
 
@@ -47,7 +47,7 @@ def time_launch(adb: Adb, pkg: str, component: str) -> int | None:
     """Force-stop, cold-start `component`, return TotalTime in ms (None if not reported)."""
     try:
         adb.shell(f"am force-stop {pkg}")
-        output = adb.shell(f"am start -W -n {component}")
+        output = adb.shell(f"am start -W -n {component}", timeout=LAUNCH_TIMEOUT_S)
     finally:
         adb.shell("input keyevent KEYCODE_HOME")
     match = _TOTAL_TIME.search(output)

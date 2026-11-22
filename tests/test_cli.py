@@ -197,12 +197,12 @@ class LosesDeviceAfterBackup(FakeAdb):
         super().__init__(packages)
         self.settings_reads = 0
 
-    def shell(self, cmd):
+    def shell(self, cmd, timeout=None):
         if cmd.startswith("settings get"):
             self.settings_reads += 1
             if self.settings_reads > self.SETTINGS_READS_BEFORE_TWEAKS:
                 self.offline = True
-        return super().shell(cmd)
+        return super().shell(cmd, timeout)
 
 
 def test_cli_debloat_unreachable_after_backup_names_backup(tmp_path, capsys):
