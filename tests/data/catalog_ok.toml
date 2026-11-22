@@ -1,0 +1,23 @@
+[[package]]
+name = "com.safe"
+action = "disable"
+tier = "safe"
+reason = "Unused Amazon promo app"
+
+[[package]]
+name = "com.mod"
+action = "disable"
+tier = "moderate"
+reason = "Unused media helper service"
+
+[[package]]
+name = "com.alexa"
+action = "disable"
+feature = "alexa"
+reason = "Alexa voice assistant service"
+
+[[package]]
+name = "com.airplay"
+action = "disable"
+feature = "airplay"
+reason = "AirPlay receiver service"
