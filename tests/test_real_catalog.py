@@ -24,7 +24,7 @@ def test_no_entry_is_protected():
 def test_required_entries():
     by = {e.package: e for e in load_catalog(CATALOG)}
     for p in ("com.instagram.airwave", "com.roku.web.trc", "tv.pluto.android"):
-        assert by[p].action == "uninstall" and by[p].tier == "safe"
+        assert by[p].action == "disable" and by[p].tier == "safe"
     # The brief names com.amazon.airplaydaemon, but that is a process name, not an
     # installed package (pm lists com.apple.airplay.amazon.airplay). See report.
     assert by["com.apple.airplay.amazon.airplay"].feature == "airplay"

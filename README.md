@@ -69,6 +69,6 @@ If the TV is in a bad state and restore doesn't fix it, reset it: Settings → M
 
 ## What it changes
 
-tvclean never uninstalls Amazon or vendor system apps. It turns them off for your user only, with `pm disable-user`. The only apps it uninstalls are Instagram, Roku Channel and Pluto TV, which are preinstalled third-party apps. Each APK is copied into the backup first, so restore can reinstall it.
+tvclean never uninstalls anything on the TV. It turns apps off for your user only, with `pm disable-user`. That includes Instagram, Roku Channel and Pluto TV. They are disabled rather than uninstalled, because Roku Channel and Pluto TV register TV inputs that Amazon's Home navigation menu relies on.
 
 Backups stay in `backups/` on your machine and are gitignored.

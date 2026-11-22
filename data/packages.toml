@@ -8,21 +8,21 @@
 
 [[package]]
 name = "com.instagram.airwave"
-action = "uninstall"
+action = "disable"
 tier = "safe"
-reason = "Preinstalled Instagram app from Amazon; not needed on the TV"
+reason = "Preinstalled Instagram app from Amazon; disabled, not uninstalled, not needed on the TV"
 
 [[package]]
 name = "com.roku.web.trc"
-action = "uninstall"
+action = "disable"
 tier = "safe"
-reason = "Preinstalled The Roku Channel app; a streaming promo, not needed"
+reason = "Preinstalled The Roku Channel app; disabled, not uninstalled, since it registers a TV input"
 
 [[package]]
 name = "tv.pluto.android"
-action = "uninstall"
+action = "disable"
 tier = "safe"
-reason = "Preinstalled Pluto TV app; a free ad-supported streaming promo"
+reason = "Preinstalled Pluto TV app; disabled, not uninstalled, since it registers a TV input"
 
 # ---- safe: ads, sponsored content, telemetry, metrics, crash upload ----
 
