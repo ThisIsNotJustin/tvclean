@@ -1,3 +1,4 @@
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -9,11 +10,35 @@ class AdbError(Exception):
 
 
 class DeviceUnreachable(AdbError):
-    """The TV did not answer adb within the allowed time."""
+    """The TV did not answer adb: the device is offline, gone or refusing the connection."""
+
+
+# Output that means adb lost the device, as opposed to a command that merely failed.
+# Matched case-insensitively against stderr and stdout of a nonzero exit.
+TRANSPORT_FAILURE_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"device offline",
+        r"no devices/emulators found",
+        r"device '[^']*' not found",
+        r"device unauthorized",
+        r"closed",
+        r"failed to connect",
+        r"connection refused",
+        r"cannot connect",
+    )
+)
 
 
 class Adb(Protocol):
-    def shell(self, cmd: str) -> str: ...
+    def shell(self, cmd: str) -> str:
+        """Run a shell command on the TV and return its output.
+
+        A nonzero exit that is not a transport failure returns stdout and stderr
+        combined; pm, am and settings report failure in that output, so callers
+        inspect it. A transport failure (device lost) raises DeviceUnreachable.
+        """
+        ...
 
     def pull(self, remote: str, local: Path) -> None: ...
 
@@ -26,6 +51,10 @@ class Adb(Protocol):
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(args, capture_output=True, text=True)
+
+
+def _is_transport_failure(text: str) -> bool:
+    return any(p.search(text) for p in TRANSPORT_FAILURE_PATTERNS)
 
 
 class RealAdb(Adb):
@@ -46,12 +75,22 @@ class RealAdb(Adb):
 
     def _checked(self, args: list[str]) -> str:
         result = self._run(args)
-        if result.returncode != 0:
-            raise AdbError((result.stderr or result.stdout).strip() or f"adb failed: {' '.join(args)}")
-        return result.stdout
+        if result.returncode == 0:
+            return result.stdout
+        text = f"{result.stdout}{result.stderr}".strip() or f"adb failed: {' '.join(args)}"
+        if _is_transport_failure(text):
+            raise DeviceUnreachable(text)
+        raise AdbError(text)
 
     def shell(self, cmd: str) -> str:
-        return self._checked(self._device_cmd("shell", cmd))
+        args = self._device_cmd("shell", cmd)
+        result = self._run(args)
+        if result.returncode == 0:
+            return result.stdout
+        text = f"{result.stdout}{result.stderr}"
+        if _is_transport_failure(text):
+            raise DeviceUnreachable(text.strip())
+        return text
 
     def pull(self, remote: str, local: Path) -> None:
         self._checked(self._device_cmd("pull", remote, str(local)))

@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -72,3 +73,49 @@ def test_commands_target_serial_except_connect():
     adb.wait_ready(timeout_s=60)
     assert seen[0] == ["adb", "connect", "1.2.3.4:5555"]
     assert seen[1] == ["adb", "-s", "1.2.3.4:5555", "shell", "getprop", "sys.boot_completed"]
+
+
+def _failing(stderr="", stdout="", returncode=1):
+    def run(cmd):
+        return completed(returncode, stdout=stdout, stderr=stderr)
+
+    return run
+
+
+def test_shell_device_offline_raises_device_unreachable():
+    adb = RealAdb("1.2.3.4:5555", "adb", run=_failing(stderr="error: device offline"), sleep=lambda s: None)
+    with pytest.raises(DeviceUnreachable):
+        adb.shell("pm list packages")
+
+
+def test_shell_command_failure_returns_output():
+    adb = RealAdb(
+        "1.2.3.4:5555",
+        "adb",
+        run=_failing(stdout="Error: java.lang.SecurityException: Cannot disable"),
+        sleep=lambda s: None,
+    )
+    assert "Cannot disable" in adb.shell("pm disable-user --user 0 com.a")
+
+
+def test_pull_transport_failure_raises_device_unreachable():
+    adb = RealAdb(
+        "1.2.3.4:5555",
+        "adb",
+        run=_failing(stderr="error: device '1.2.3.4:5555' not found"),
+        sleep=lambda s: None,
+    )
+    with pytest.raises(DeviceUnreachable):
+        adb.pull("/system/app/a.apk", Path("/tmp/a.apk"))
+
+
+def test_install_non_transport_failure_raises_plain_adb_error():
+    adb = RealAdb(
+        "1.2.3.4:5555",
+        "adb",
+        run=_failing(stderr="Failure [INSTALL_FAILED_VERSION_DOWNGRADE]"),
+        sleep=lambda s: None,
+    )
+    with pytest.raises(AdbError) as info:
+        adb.install(Path("/tmp/a.apk"))
+    assert not isinstance(info.value, DeviceUnreachable)
