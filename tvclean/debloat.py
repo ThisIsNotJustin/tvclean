@@ -1,5 +1,7 @@
 """Batched debloat: apply catalog entries in reboot-checked batches, reverting a batch on failure."""
 import json
+import math
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +20,24 @@ APPLIED_FILE = "applied.json"
 REPORT_FILE = "report.json"
 UNDONE_STATUSES = ("done", "skipped-already")
 APPLIED_STATUSES = ("done", "skipped-already")
+# Seconds after a reboot before health checks: Home and the HDMI inputs settle slowly.
+SETTLE_S = 45
+HEALTH_ATTEMPTS = 3
+HEALTH_RETRY_S = 30
+MINUTES_PER_BATCH = 5
+CONFIRM_PROMPT = (
+    "Batch {n} done. Check: remote works, picture OK, Home and Settings open, "
+    "switch to an HDMI input and back, search from Home, open one app. All OK? [y/N]"
+)
+
+
+def plan_line(count: int, batch_size: int = 10) -> str:
+    """The up-front plan: how many packages, in how many batches, and so how many reboots."""
+    batches = math.ceil(count / batch_size)
+    return (
+        f"{count} packages in {batches} batches → {batches} reboots "
+        f"(about {batches * MINUTES_PER_BATCH} minutes)"
+    )
 
 
 @dataclass
@@ -68,7 +88,16 @@ def _write_report(
     (backup / REPORT_FILE).write_text(json.dumps(data, indent=2) + "\n")
 
 
-def _revert(adb: Adb, packages: list[str], backup: Path, reverted: list[str]) -> list[str]:
+def _revert(
+    adb: Adb,
+    packages: list[str],
+    backup: Path,
+    reverted: list[str],
+    *,
+    settle_s: float,
+    sleep: Callable[[float], None],
+    log: Callable[[str], None],
+) -> list[str]:
     """Undo each package, then reboot. Returns detail for any undo that did not succeed."""
     failures: list[str] = []
     for package in packages:
@@ -77,9 +106,28 @@ def _revert(adb: Adb, packages: list[str], backup: Path, reverted: list[str]) ->
             reverted.append(package)
         else:
             failures.append(f"{package}: {outcome.detail or outcome.status}")
+    log("Rebooting (up to 4 min)…")
     adb.reboot()
     adb.wait_ready()
+    log("Waiting for the TV to settle…")
+    sleep(settle_s)
     return failures
+
+
+def _health_with_retries(
+    adb: Adb, *, retry_s: float, sleep: Callable[[float], None], log: Callable[[str], None]
+) -> list[str]:
+    """Problems after the settle time. Only a failure on every attempt counts as a problem."""
+    problems: list[str] = []
+    for attempt in range(1, HEALTH_ATTEMPTS + 1):
+        log("Running health checks…")
+        problems = check_health(adb)
+        if not problems:
+            return []
+        if attempt < HEALTH_ATTEMPTS:
+            log(f"Health check failed ({'; '.join(problems)}); retrying in {retry_s:g} s…")
+            sleep(retry_s)
+    return problems
 
 
 def _record_applied(
@@ -109,7 +157,19 @@ def run_debloat(
     now: Callable[[], datetime] = datetime.now,
     measure: Callable[[Adb], dict] = collect_metrics,
     log: Callable[[str], None] = print,
+    baseline_reboot: bool = True,
+    settle_s: float | None = None,
+    health_retry_s: float | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Report:
+    settle = SETTLE_S if settle_s is None else settle_s
+    retry = HEALTH_RETRY_S if health_retry_s is None else health_retry_s
+    if baseline_reboot:
+        # Nothing has changed yet, so the baseline is measured on a freshly booted TV.
+        log("Rebooting for a clean baseline…")
+        adb.reboot()
+        adb.wait_ready()
+    log("Measuring baseline (the TV will open Netflix, YouTube and Disney+ by itself)…")
     metrics_before = measure(adb)
     backup = create_backup(adb, root, now(), metrics=metrics_before)
 
@@ -119,13 +179,7 @@ def run_debloat(
     metrics_after: dict | None = None
 
     try:
-        changed, failed_tweaks = apply_tweaks(adb) if tweaks else ({}, [])
-        for key, (old, new_value) in changed.items():
-            log(f"Tweak {key}: {old} -> {new_value}")
-        for key in failed_tweaks:
-            log(f"Tweak {key} did not read back as set; left as is")
         state = read_state(adb)
-
         todo: list[Entry] = []
         for entry in select(entries, tier, features_off):
             if entry.package not in state.installed:
@@ -134,9 +188,17 @@ def run_debloat(
                 outcomes.append(Outcome(entry.package, "skipped-already"))
             else:
                 todo.append(entry)
+        batches = [todo[i:i + batch_size] for i in range(0, len(todo), batch_size)]
+        log(f"Plan: {plan_line(len(todo), batch_size)}")
 
-        for number, start in enumerate(range(0, len(todo), batch_size), start=1):
-            chunk = todo[start:start + batch_size]
+        changed, failed_tweaks = apply_tweaks(adb) if tweaks else ({}, [])
+        for key, (old, new_value) in changed.items():
+            log(f"Tweak {key}: {old} -> {new_value}")
+        for key in failed_tweaks:
+            log(f"Tweak {key} did not read back as set; left as is")
+
+        for number, chunk in enumerate(batches, start=1):
+            log(f"Batch {number}/{len(batches)}: disabling {', '.join(e.package for e in chunk)}…")
             chunk_outcomes: list[Outcome] = []
             for entry in chunk:
                 try:
@@ -152,11 +214,14 @@ def run_debloat(
                 log(f"Batch {number}: nothing changed")
                 continue
 
+            log("Rebooting (up to 4 min)…")
             adb.reboot()
             adb.wait_ready()
-            problems = check_health(adb)
+            log("Waiting for the TV to settle…")
+            sleep(settle)
+            problems = _health_with_retries(adb, retry_s=retry, sleep=sleep, log=log)
             if problems:
-                failures = _revert(adb, done, backup, reverted)
+                failures = _revert(adb, done, backup, reverted, settle_s=settle, sleep=sleep, log=log)
                 stopped_reason = (
                     f"Batch {number} failed health check ({'; '.join(problems)}); batch reverted."
                 )
@@ -164,14 +229,15 @@ def run_debloat(
                     stopped_reason += f" Undo incomplete: {'; '.join(failures)}."
                 break
 
-            if not confirm(f"Batch {number} done. Remote, picture and an app all OK? [y/N]"):
-                failures = _revert(adb, done, backup, reverted)
+            if not confirm(CONFIRM_PROMPT.format(n=number)):
+                failures = _revert(adb, done, backup, reverted, settle_s=settle, sleep=sleep, log=log)
                 stopped_reason = f"Batch {number} not confirmed by owner; batch reverted."
                 if failures:
                     stopped_reason += f" Undo incomplete: {'; '.join(failures)}."
                 break
             log(f"Batch {number} confirmed")
         else:
+            log("Measuring results…")
             metrics_after = measure(adb)
     except DeviceUnreachable:
         stopped_reason = _lost_device_message(backup)

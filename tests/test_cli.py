@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from tests.fakes import FakeAdb
-from tvclean import cli, metrics
+from tvclean import cli, debloat, metrics
 from tvclean.backup import list_backups
 from tvclean.debloat import Report
 from tvclean.state import read_state
@@ -17,6 +17,8 @@ NETFLIX = "com.netflix.ninja"
 def catalog_and_no_settle(monkeypatch):
     monkeypatch.setenv("TVCLEAN_CATALOG", str(CATALOG))
     monkeypatch.setattr(metrics, "IDLE_SETTLE_S", 0)  # the idle wait is real time otherwise
+    monkeypatch.setattr(debloat, "SETTLE_S", 0)
+    monkeypatch.setattr(debloat, "HEALTH_RETRY_S", 0)
 
 
 def device() -> FakeAdb:
@@ -223,7 +225,12 @@ def test_cli_debloat_prints_refused_and_reverted(tmp_path, capsys):
     f = device()
     f.refuse_disable = {"com.safe"}
 
-    code, out, err = run_cli(["debloat", "--tier", "moderate"], f, tmp_path, capsys, input_fn=lambda _: "n")
+    def start_then_decline(prompt):
+        return "y" if prompt.startswith("Start?") else "n"
+
+    code, out, err = run_cli(
+        ["debloat", "--tier", "moderate"], f, tmp_path, capsys, input_fn=start_then_decline
+    )
 
     backups = list_backups(tmp_path)
     assert code == 1
@@ -233,3 +240,37 @@ def test_cli_debloat_prints_refused_and_reverted(tmp_path, capsys):
     assert "MemAvailable:" in out
     assert backups[0].name in err
     assert "tvclean restore" in err
+
+
+def test_cli_debloat_declined_start_changes_nothing(tmp_path, capsys):
+    f = device()
+    prompts = []
+
+    def decline(prompt):
+        prompts.append(prompt)
+        return "n"
+
+    code, out, err = run_cli(["debloat"], f, tmp_path, capsys, input_fn=decline)
+
+    assert code == 0
+    assert prompts[0].startswith("Start? [y/N]")
+    assert "Not started" in out
+    assert list_backups(tmp_path) == []
+    assert f.reboots == 0
+    assert f.packages["com.safe"]["enabled"]
+
+
+def test_cli_ctrl_c_prints_backup_and_exits_130(tmp_path, capsys):
+    f = device()
+
+    def ctrl_c_after_start(prompt):
+        if prompt.startswith("Start?"):
+            return "y"
+        raise KeyboardInterrupt
+
+    code, out, err = run_cli(["debloat"], f, tmp_path, capsys, input_fn=ctrl_c_after_start)
+
+    backups = list_backups(tmp_path)
+    assert code == 130
+    assert len(backups) == 1
+    assert f"Stopped. Your backup is {backups[0].name}; run 'tvclean restore' to undo." in err

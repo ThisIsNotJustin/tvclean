@@ -47,6 +47,11 @@ def clock(start: datetime):
 
 def run(f, entries, root: Path, confirm, now=None, **kwargs):
     kwargs.setdefault("features_off", set())
+    # Tests skip the real waits: no baseline reboot, no settle time, no health retry delay.
+    kwargs.setdefault("baseline_reboot", False)
+    kwargs.setdefault("settle_s", 0)
+    kwargs.setdefault("health_retry_s", 0)
+    kwargs.setdefault("sleep", lambda _: None)
     return run_debloat(
         f,
         entries,
@@ -249,6 +254,7 @@ def test_debloat_unexpected_error_writes_applied_and_reraises(tmp_path):
             f, safe_entries(23), tier="safe", features_off=set(), root=tmp_path,
             confirm=confirm, now=clock(datetime(2026, 11, 21, 10, 0, 0)),
             measure=fake_measure, log=logs.append,
+            baseline_reboot=False, settle_s=0, health_retry_s=0, sleep=lambda _: None,
         )
 
     assert read_applied(tmp_path)["packages"] == names(*range(10))
@@ -310,3 +316,95 @@ def test_debloat_writes_report_json(tmp_path):
     assert len([o for o in data["outcomes"] if o["status"] == "done"]) == 10
     assert "tvclean restore" in data["stopped_reason"]
     assert data["metrics_after"] is None
+
+
+def test_debloat_reboots_for_clean_baseline_before_measuring(tmp_path):
+    f = device(5)
+    measured_at = []
+    logs = []
+
+    def measure(adb):
+        measured_at.append(adb.reboots)
+        return fake_measure(adb)
+
+    run_debloat(
+        f, safe_entries(5), tier="safe", features_off=set(), root=tmp_path,
+        confirm=lambda _: True, now=clock(datetime(2026, 11, 21, 10, 0, 0)),
+        measure=measure, log=logs.append, settle_s=0, health_retry_s=0,
+        sleep=lambda _: None,
+    )
+
+    assert measured_at[0] == 1, "the baseline is measured after one reboot"
+    assert any("clean baseline" in line for line in logs)
+
+
+def test_debloat_logs_phases_and_plan(tmp_path):
+    f = device(12)
+    logs = []
+
+    run_debloat(
+        f, safe_entries(12), tier="safe", features_off=set(), root=tmp_path,
+        confirm=lambda _: True, now=clock(datetime(2026, 11, 21, 10, 0, 0)),
+        measure=fake_measure, log=logs.append, baseline_reboot=False,
+        settle_s=0, health_retry_s=0, sleep=lambda _: None,
+    )
+
+    text = "\n".join(logs)
+    assert "12 packages in 2 batches → 2 reboots (about 10 minutes)" in text
+    assert "Measuring baseline (the TV will open Netflix, YouTube and Disney+ by itself)…" in text
+    assert "Batch 1/2: disabling com.example.safe00, com.example.safe01" in text
+    assert "Batch 2/2: disabling" in text
+    assert "Rebooting (up to 4 min)…" in text
+    assert "Waiting for the TV to settle…" in text
+    assert "Running health checks…" in text
+    assert "Measuring results…" in text
+    plan_at = next(i for i, line in enumerate(logs) if "packages in" in line)
+    first_batch = next(i for i, line in enumerate(logs) if line.startswith("Batch 1/2"))
+    assert plan_at < first_batch
+
+
+def test_settle_before_health(tmp_path):
+    f = device(5)
+    sleeps = []
+
+    run(f, safe_entries(5), tmp_path, lambda _: True, settle_s=45, sleep=sleeps.append)
+
+    assert sleeps[0] == 45
+
+
+def test_health_retried_before_revert(tmp_path, monkeypatch):
+    from tvclean import debloat as debloat_module
+
+    f = device(5)
+    real_check = debloat_module.check_health
+    results = iter([["HDMI inputs missing"], []])
+    monkeypatch.setattr(debloat_module, "check_health", lambda adb: next(results, real_check(adb)))
+    sleeps = []
+
+    report = run(f, safe_entries(5), tmp_path, lambda _: True, health_retry_s=30, sleep=sleeps.append)
+
+    assert report.reverted == []
+    assert report.stopped_reason is None
+    assert sleeps.count(30) == 1
+    assert all(not f.packages[f"com.example.safe{i:02d}"]["enabled"] for i in range(5))
+
+
+def test_health_reverts_only_after_three_failed_attempts(tmp_path, monkeypatch):
+    from tvclean import debloat as debloat_module
+
+    f = device(5)
+    attempts = []
+
+    def always_bad(adb):
+        attempts.append(1)
+        return ["HDMI inputs missing"]
+
+    monkeypatch.setattr(debloat_module, "check_health", always_bad)
+    sleeps = []
+
+    report = run(f, safe_entries(5), tmp_path, lambda _: True, health_retry_s=30, sleep=sleeps.append)
+
+    assert len(attempts) == 3
+    assert sleeps.count(30) == 2
+    assert "failed health check" in report.stopped_reason
+    assert all(f.packages[f"com.example.safe{i:02d}"]["enabled"] for i in range(5))

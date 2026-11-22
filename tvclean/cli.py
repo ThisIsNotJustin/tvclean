@@ -8,9 +8,9 @@ from typing import Callable
 
 from tvclean.adb import AdbError, DeviceUnreachable, RealAdb
 from tvclean.backup import create_backup, list_backups
-from tvclean.catalog import FEATURES, CatalogError, load_catalog
+from tvclean.catalog import FEATURES, CatalogError, load_catalog, select
 from tvclean.config import REPO_ROOT, catalog_path, default_adb_path, default_device
-from tvclean.debloat import Report, run_debloat
+from tvclean.debloat import Report, plan_line, run_debloat
 from tvclean.features import set_feature
 from tvclean.metrics import LAUNCH_TARGETS
 from tvclean.restore import NoBackups, run_restore
@@ -117,6 +117,7 @@ def main(
     args = build_parser().parse_args(argv)
     root = DEFAULT_ROOT if root is None else root
     device = args.device or default_device()
+    backups_before = set(list_backups(root))
 
     try:
         if args.command == "backups":
@@ -174,11 +175,15 @@ def main(
             return 0
 
         # debloat
+        features_off = set(FEATURES) - args.keep
         if args.yes:
             confirm = lambda prompt: True  # noqa: E731
         else:
+            print(plan_line(len(select(entries, args.tier, features_off))))
+            if not _ask(input_fn, "Start? [y/N]"):
+                print("Not started. Nothing was changed.")
+                return 0
             confirm = lambda prompt: _ask(input_fn, prompt)  # noqa: E731
-        features_off = set(FEATURES) - args.keep
         report = run_debloat(
             adb,
             entries,
@@ -199,6 +204,16 @@ def main(
             return 1
         return 0
 
+    except KeyboardInterrupt:
+        made = [b for b in list_backups(root) if b not in backups_before]
+        if made:
+            print(
+                f"Stopped. Your backup is {made[-1].name}; run 'tvclean restore' to undo.",
+                file=sys.stderr,
+            )
+        else:
+            print("Stopped.", file=sys.stderr)
+        return 130
     except DeviceUnreachable:
         print(
             f"TV not reachable at {device}. Is it on and is ADB debugging enabled?",
