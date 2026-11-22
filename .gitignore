@@ -7,3 +7,5 @@ local.properties
 backups/
 # raw device dumps contain serial/MAC
 recon/*.txt
+# local-only agent planning docs
+docs/superpowers/
