@@ -1,0 +1,269 @@
+# Curated package catalog for the Insignia NS75-UQFL26 (Fire OS 8.1.8.5).
+# Every package here is on data/device_packages.txt (from recon, Fire OS 8.1.8.5).
+# Tiers: safe = telemetry, ads, promos, preinstalled extras; moderate = background
+# services that may break something; features are off by default (spec section 9).
+# Excluded on purpose: see the PR description, "Considered, not included".
+
+# ---- preinstalled extras (/data/app): pulled to backup, then uninstalled --user 0 ----
+
+[[package]]
+name = "com.instagram.airwave"
+action = "uninstall"
+tier = "safe"
+reason = "Preinstalled Instagram app from Amazon; not needed on the TV"
+
+[[package]]
+name = "com.roku.web.trc"
+action = "uninstall"
+tier = "safe"
+reason = "Preinstalled The Roku Channel app; a streaming promo, not needed"
+
+[[package]]
+name = "tv.pluto.android"
+action = "uninstall"
+tier = "safe"
+reason = "Preinstalled Pluto TV app; a free ad-supported streaming promo"
+
+# ---- safe: ads, sponsored content, telemetry, metrics, crash upload ----
+
+[[package]]
+name = "com.amazon.kso.blackbird"
+action = "disable"
+tier = "safe"
+reason = "Kindle Special Offers ads service that pushes sponsored content"
+
+[[package]]
+name = "com.amazon.ftvads.deeplinking"
+action = "disable"
+tier = "safe"
+reason = "Opens advertising deep links when an ad is clicked"
+
+[[package]]
+name = "com.amazon.tv.acr"
+action = "disable"
+tier = "safe"
+reason = "Automatic content recognition: reports what is on screen to Amazon"
+
+[[package]]
+name = "com.amazon.media.recommendations"
+action = "disable"
+tier = "safe"
+reason = "Recommendation rows on Amazon's home screen; promo, not playback"
+
+[[package]]
+name = "com.amazon.sneakpeek"
+action = "disable"
+tier = "safe"
+reason = "Autoplaying promotional previews on Amazon's home screen"
+
+[[package]]
+name = "com.amazon.shoptv.client"
+action = "disable"
+tier = "safe"
+reason = "Amazon shopping on TV; a marketing client, not used by streaming apps"
+
+[[package]]
+name = "com.amazon.tv.easyupgrade"
+action = "disable"
+tier = "safe"
+reason = "Device upgrade promotions shown to the owner"
+
+[[package]]
+name = "com.amazon.minitv.android.app"
+action = "disable"
+tier = "safe"
+reason = "Amazon miniTV, a free ad-supported video promo app"
+
+[[package]]
+name = "com.amazon.hybridadidservice"
+action = "disable"
+tier = "safe"
+reason = "Advertising ID service; supports ad tracking, not device function"
+
+[[package]]
+name = "com.amazon.device.crashmanager"
+action = "disable"
+tier = "safe"
+reason = "Uploads crash reports to Amazon; diagnostics only"
+
+[[package]]
+name = "com.amazon.dp.logger"
+action = "disable"
+tier = "safe"
+reason = "Device logging service that collects logs for Amazon"
+
+[[package]]
+name = "com.amazon.device.logmanager"
+action = "disable"
+tier = "safe"
+reason = "Log manager that gathers and uploads device logs to Amazon"
+
+[[package]]
+name = "com.amazon.perfc"
+action = "disable"
+tier = "safe"
+reason = "Performance data collection that reports usage metrics to Amazon"
+
+[[package]]
+name = "com.amazon.perfcollection"
+action = "disable"
+tier = "safe"
+reason = "Performance data collection that reports usage metrics to Amazon"
+
+[[package]]
+name = "com.amazon.device.telemetry.emitter"
+action = "disable"
+tier = "safe"
+reason = "Telemetry emitter that sends device event data to Amazon"
+
+[[package]]
+name = "com.amazon.device.metrics"
+action = "disable"
+tier = "safe"
+reason = "Amazon device metrics collection; usage reporting only"
+
+[[package]]
+name = "com.amazon.wirelessmetrics.service"
+action = "disable"
+tier = "safe"
+reason = "Wi-Fi quality metrics collection for Amazon; reporting, not the connection"
+
+[[package]]
+name = "com.amazon.neo.minerva"
+action = "disable"
+tier = "safe"
+reason = "Minerva telemetry service that reports system metrics to Amazon"
+
+# ---- moderate: non-essential background or helper services, risk named ----
+
+[[package]]
+name = "com.amazon.device.messaging"
+action = "disable"
+tier = "moderate"
+reason = "Amazon Device Messaging push service; may break push notifications for apps that use it"
+
+[[package]]
+name = "com.amazon.tcomm"
+action = "disable"
+tier = "moderate"
+reason = "Amazon Communication Services background hub; may break push delivery to Amazon apps"
+
+[[package]]
+name = "com.amazon.tmm.tutorial"
+action = "disable"
+tier = "moderate"
+reason = "On-screen tutorial app; may break only the built-in tutorial screens"
+
+[[package]]
+name = "com.amazon.storm.lightning.tutorial"
+action = "disable"
+tier = "moderate"
+reason = "On-screen tutorial app; may break only the built-in tutorial screens"
+
+[[package]]
+name = "com.amazon.tv.releasenotes"
+action = "disable"
+tier = "moderate"
+reason = "Shows release notes after updates; may break only that screen"
+
+[[package]]
+name = "com.amazon.tv.csapp"
+action = "disable"
+tier = "moderate"
+reason = "Built-in help videos; may break only the help screens"
+
+[[package]]
+name = "com.amazon.ods.kindleconnect"
+action = "disable"
+tier = "moderate"
+reason = "Mayday support screen sharing; may break Amazon support sessions only"
+
+# ---- feature alexa: off by default. Voice assistant only ----
+
+[[package]]
+name = "com.amazon.vizzini"
+action = "disable"
+feature = "alexa"
+reason = "Alexa on Fire TV; may break voice search on the remote's mic button"
+
+[[package]]
+name = "com.amazon.alexadirectivebrokerservice"
+action = "disable"
+feature = "alexa"
+reason = "Routes Alexa voice commands to the device; Alexa-only"
+
+[[package]]
+name = "com.amazon.alexa.externalmediaplayer.fireos"
+action = "disable"
+feature = "alexa"
+reason = "Alexa-controlled media playback; not the remote's play/pause keys"
+
+[[package]]
+name = "com.amazon.alexamediaplayer.runtime.ftv"
+action = "disable"
+feature = "alexa"
+reason = "Alexa media player runtime used for Alexa audio playback only"
+
+[[package]]
+name = "com.amazon.alexa.datastore.app"
+action = "disable"
+feature = "alexa"
+reason = "Alexa data store used only by the Alexa services"
+
+[[package]]
+name = "com.amazon.rtcsessioncontroller"
+action = "disable"
+feature = "alexa"
+reason = "Alexa video call session controller; Alexa-only"
+
+[[package]]
+name = "com.amazon.audiohome"
+action = "disable"
+feature = "alexa"
+reason = "Alexa multi-room audio grouping; Alexa-only"
+
+[[package]]
+name = "com.amazon.tv.alexaalerts"
+action = "disable"
+feature = "alexa"
+reason = "Alexa timers and alarm alerts on the TV; Alexa-only"
+
+[[package]]
+name = "com.amazon.tv.alexanotifications"
+action = "disable"
+feature = "alexa"
+reason = "Alexa notification announcements on the TV; Alexa-only"
+
+[[package]]
+name = "com.amazon.spotify.mediabrowserservice"
+action = "disable"
+feature = "alexa"
+reason = "Alexa's Spotify bridge for voice play; the Spotify app itself still works"
+
+# ---- feature airplay: off by default ----
+
+[[package]]
+name = "com.apple.airplay.amazon.airplay"
+action = "disable"
+feature = "airplay"
+reason = "AirPlay receiver companion app; only used for AirPlay casting from Apple devices"
+
+# ---- feature updates: off by default (exactly the three OTA packages) ----
+
+[[package]]
+name = "com.amazon.device.software.ota"
+action = "disable"
+feature = "updates"
+reason = "Amazon over-the-air system update client; turning it off stops automatic updates"
+
+[[package]]
+name = "com.amazon.device.software.ota.override"
+action = "disable"
+feature = "updates"
+reason = "OTA idle override that lets system updates install; turning it off stops updates"
+
+[[package]]
+name = "com.amazon.tv.forcedotaupdater.v2"
+action = "disable"
+feature = "updates"
+reason = "Forced OTA update checker; turning it off stops forced updates"
