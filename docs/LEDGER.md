@@ -51,3 +51,15 @@ A running log of decisions and progress, newest last. Each entry is dated. Decis
 **Progress**
 - Phase 1 complete: `phase1-debloat-tool` opened as a PR. Results are in `docs/phase1-results.md`
 - Next: Phase 2a, the Home-button redirect test
+
+## 2026-11-22 (Phase 2a spike)
+
+**Findings** (details in `docs/spike-report.md`)
+- The Home redirect via an accessibility service works: seamless, no visible flash, good speed (owner). It survives sleep/wake. Fire OS clears it on every reboot (Amazon's accessibility manager allowlists services)
+- No episode-level resume data (Watch Next is empty). App-level recents work
+- Third-party apps can't switch HDMI (Amazon-signature permission). Amazon's Inputs page and its top-nav tabs open via `amzn://com.amazon.tv.launcher/menuNavigation?locationID=…`
+- Compose for TV, release build: 0.83 s cold start, 73 MB, 11% scroll jank (over budget)
+
+**Decisions**
+- Phase 2b proceeds with the accessibility-service redirect, plus `tvclean home on|off` from the Mac after reboots (build call; the redirect met the owner's flash tolerance)
+- The resume panel is app-level. The Inputs tile opens Amazon's Inputs page. Alexa/AirPlay/updates switches stay Mac-only (build calls forced by platform limits)
