@@ -26,3 +26,28 @@ A running log of decisions and progress, newest last. Each entry is dated. Decis
 **Progress**
 - `main`: plan, recon summary, mockup
 - Next: Phase 1 on `phase1-debloat-tool`
+
+## 2026-11-21 (Phase 1 build and live run)
+
+**Decisions made during the build** (owner decisions marked; the rest were build calls)
+- adb errors: a lost TV is reported separately from a failed command. Every change is re-checked against the TV's real state instead of trusting command output
+- The record of what tvclean changed is cumulative across runs, so `status` can spot anything an Amazon update re-enables
+- `tvclean restore` only moves the TV back toward stock, never disables anything. With no name it goes back to the **first** backup (the TV before tvclean); `restore <name>` rolls back to a specific point
+- Two Amazon-private settings whose meaning was only guessed from their names are left out of the tweaks. `debloat --no-tweaks` skips the tweaks entirely
+- AirPlay's real package is `com.apple.airplay.amazon.airplay`. `com.amazon.airplaydaemon` is only its process name
+- The post-batch check covers Home, Settings, HDMI switching, search and opening an app. Each run reboots once for a clean baseline before measuring
+- After each reboot, tvclean pauses and asks the owner to flip ADB Debugging off and on (owner chose this over a permanent adb setting)
+- Preinstalled extras (Instagram, Roku Channel, Pluto TV) are disabled, never uninstalled
+- The catalog keeps only packages that actually work on this TV (owner ran the "what sticks" test)
+- tvclean no longer changes `animator_duration_scale`. It breaks the Home menu's Settings and Inputs
+
+**Live findings**
+- Network adb turns off on every reboot (the switch still shows On). Flipping it restores it
+- Fire OS refuses to disable 9 catalog packages (protected), including the main update services, tcomm and device messaging. `vizzini` (Alexa voice) turns itself back on at every boot
+- 30 packages disabled and stable. Launches ~5–10% faster. Free memory unchanged (613 vs 625–665 MB), so the +150 MB target was not met
+- The menu breakage was the animator tweak, not any package. It was found by reverting settings one at a time and confirmed across a reboot
+- The owner uninstalled Instagram by hand
+
+**Progress**
+- Phase 1 complete: `phase1-debloat-tool` opened as a PR. Results are in `docs/phase1-results.md`
+- Next: Phase 2a, the Home-button redirect test
