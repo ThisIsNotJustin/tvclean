@@ -67,4 +67,27 @@ class RedirectPolicyTest {
         assertFalse(policy.onLauncherFocus("some-tile"))
         assertTrue(policy.inLinkSession())
     }
+
+    @Test fun pollActiveDuringSession() {
+        assertFalse(policy.pollActive())
+        policy.startLinkSession()
+        t = 60_000
+        assertTrue(policy.pollActive())
+    }
+
+    @Test fun pollStopsAfterCap() {
+        policy.startLinkSession()
+        t = 119_999
+        assertTrue(policy.pollActive())
+        t = 120_000
+        assertFalse(policy.pollActive())
+        policy.renewGrace()
+        assertTrue(policy.pollActive())
+    }
+
+    @Test fun pollStopsWhenSessionEnds() {
+        policy.startLinkSession()
+        policy.pauseFor(1_000)
+        assertFalse(policy.pollActive())
+    }
 }

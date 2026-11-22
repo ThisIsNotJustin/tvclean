@@ -4,6 +4,8 @@ const val AMAZON_HOME_TAB_ID = "nav-tab-movies_and_tv_home_tab"
 const val ESCAPE_PAUSE_MS = 30_000L
 const val LINK_GRACE_MS = 2_500L
 const val TAB_LINK_DELAY_MS = 800L
+const val LINK_POLL_MS = 1_000L
+const val LINK_POLL_MAX_MS = 120_000L
 
 enum class AmazonPage(val locationId: String, val needsAmazonHome: Boolean) {
     SEARCH("search_tab_v2", true),

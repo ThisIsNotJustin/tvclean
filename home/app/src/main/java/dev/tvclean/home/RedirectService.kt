@@ -2,11 +2,31 @@ package dev.tvclean.home
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import dev.tvclean.home.core.LINK_POLL_MS
 
 class RedirectService : AccessibilityService() {
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val poll = object : Runnable {
+        override fun run() {
+            val policy = Redirect.policy
+            if (!policy.pollActive()) return
+            if (rootInActiveWindow?.packageName?.toString() == AMAZON_PKG) {
+                val id = focusedViewId(rootInActiveWindow, 0)
+                if (policy.onLauncherFocus(id)) {
+                    redirect("home tab poll")
+                    updateEventTypes()
+                    return
+                }
+            }
+            handler.postDelayed(this, LINK_POLL_MS)
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -39,11 +59,13 @@ class RedirectService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         Redirect.onSessionChange = null
+        handler.removeCallbacks(poll)
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         Redirect.onSessionChange = null
+        handler.removeCallbacks(poll)
         super.onDestroy()
     }
 
@@ -67,6 +89,8 @@ class RedirectService : AccessibilityService() {
     }
 
     private fun updateEventTypes() {
+        handler.removeCallbacks(poll)
+        if (Redirect.policy.pollActive()) handler.postDelayed(poll, LINK_POLL_MS)
         val info = serviceInfo ?: return
         var types = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         if (Redirect.policy.inLinkSession()) types = types or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
@@ -78,6 +102,7 @@ class RedirectService : AccessibilityService() {
 
     private companion object {
         const val TAG = "TVHOME"
+        const val AMAZON_PKG = "com.amazon.tv.launcher"
         const val MAX_DEPTH = 30
     }
 }

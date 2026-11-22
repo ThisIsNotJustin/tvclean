@@ -23,6 +23,9 @@ class RedirectPolicy(private val now: () -> Long) {
         if (inSession) sessionStart = now()
     }
 
+    /** True while a link session should be polled: active and within the cap since it started or was renewed. */
+    fun pollActive(): Boolean = inSession && now() - sessionStart < LINK_POLL_MAX_MS
+
     fun inLinkSession(): Boolean = inSession
 
     private fun inGrace(): Boolean = inSession && now() - sessionStart < LINK_GRACE_MS
