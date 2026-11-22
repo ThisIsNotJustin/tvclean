@@ -13,6 +13,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import android.os.SystemClock
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,11 +62,22 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
         progress.floatValue = carousel.progress
     }
 
-    LaunchedEffect(carousel) {
-        while (true) {
-            delay(TICK_MILLIS)
-            carousel.tick(TICK_MILLIS)
-            sync()
+    // Remembered across carousel re-creation so a rebuilt carousel keeps the hero's pause state.
+    var heroFocused by remember { mutableStateOf(false) }
+    carousel.setPaused(heroFocused)
+
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(carousel, lifecycle) {
+        // Tick only while the activity is started; nothing wakes while another app is on screen.
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var last = SystemClock.uptimeMillis()
+            while (true) {
+                delay(TICK_MILLIS)
+                val now = SystemClock.uptimeMillis()
+                carousel.tick(now - last)
+                last = now
+                sync()
+            }
         }
     }
     LaunchedEffect(state.focusResetKey, state.apps.isNotEmpty()) {
@@ -86,7 +103,7 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
                         count = state.slides.size,
                         progress = { progress.floatValue },
                         onLaunch = { actions.launch(slide.app.packageName) },
-                        onButtonFocus = { carousel.setPaused(it) },
+                        onButtonFocus = { heroFocused = it; carousel.setPaused(it) },
                         onPrevious = { carousel.previous(); sync() },
                         onNext = { carousel.next(); sync() },
                         modifier = Modifier.fillMaxSize(),
