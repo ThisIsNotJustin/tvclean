@@ -18,6 +18,16 @@ from pathlib import Path
 
 from tvclean.adb import Adb, AdbError, DeviceUnreachable
 
+RESOLVE_HEADER = "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n"
+
+# Shape copied from the TV's `dumpsys connectivity` Wi-Fi line. Only the type and state
+# markers are kept; the addresses and SSID in the real line are deliberately left out.
+WIFI_CONNECTED_OUTPUT = (
+    "Current Networks:\n"
+    "  NetworkAgentInfo{ ni{[type: WIFI[], state: CONNECTED/CONNECTED, reason: (unspecified)]}"
+    "  network{100} }\n"
+)
+
 
 class FakeAdb(Adb):
     def __init__(
@@ -113,12 +123,29 @@ class FakeAdb(Adb):
         if args == ["cat", "/proc/meminfo"]:
             return f"MemTotal:        1500000 kB\nMemAvailable:   {self.mem_available_kb} kB\n"
         if args[:3] == ["cmd", "package", "resolve-activity"]:
-            return self._resolve_activity(args[-1])
+            return self._resolve_activity(args)
         if args[:3] == ["am", "start", "-W"]:
             return self._start_activity(args[args.index("-n") + 1])
         if args[:2] == ["am", "force-stop"]:
             return ""
+        if args == ["getprop", "sys.boot_completed"]:
+            return "1\n"
+        if args == ["dumpsys", "tv_input"]:
+            return self._tv_input()
+        if args == ["dumpsys", "connectivity"]:
+            return WIFI_CONNECTED_OUTPUT
+        if args == ["input", "keyevent", "KEYCODE_HOME"]:
+            return ""
         raise AssertionError(f"FakeAdb: unhandled command: {' '.join(args)}")
+
+    def _tv_input(self) -> str:
+        if not self.healthy:
+            return "TvInputManagerService\n  inputs: AV1, Antenna\n"
+        return (
+            "TvInputManagerService\n"
+            "  inputs: HDMI1, HDMI2, HDMI3\n"
+            "  service: HdmiInputService\n"
+        )
 
     def _list_packages(self, flags: list[str]) -> str:
         names = [n for n, p in self.packages.items() if p["installed"]]
@@ -156,11 +183,16 @@ class FakeAdb(Adb):
         self.packages[name]["enabled"] = True
         return f"Package {name} installed for user: 0"
 
-    def _resolve_activity(self, name: str) -> str:
+    def _resolve_activity(self, args: list[str]) -> str:
+        if "android.intent.category.HOME" in args:
+            return RESOLVE_HEADER + "com.amazon.tv.launcher/.ui.HomeActivity_vNext\n"
+        if "android.settings.SETTINGS" in args:
+            return RESOLVE_HEADER + "com.android.settings/.Settings\n"
+        name = args[-1]
         pkg = self.packages.get(name)
         if pkg is None or not pkg["installed"] or not pkg["enabled"]:
             return "No activity found"
-        return f"priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n{name}/.MainActivity"
+        return RESOLVE_HEADER + f"{name}/.MainActivity\n"
 
     def _start_activity(self, component: str) -> str:
         if not self.healthy:
