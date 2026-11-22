@@ -50,6 +50,8 @@ class Adb(Protocol):
 
     def pull(self, remote: str, local: Path) -> None: ...
 
+    def push(self, local: Path, remote: str) -> None: ...
+
     def install(self, apk: Path) -> None: ...
 
     def reboot(self) -> None: ...
@@ -110,6 +112,9 @@ class RealAdb(Adb):
 
     def pull(self, remote: str, local: Path) -> None:
         self._checked(self._device_cmd("pull", remote, str(local)))
+
+    def push(self, local: Path, remote: str) -> None:
+        self._checked(self._device_cmd("push", str(local), remote))
 
     def install(self, apk: Path) -> None:
         self._checked(self._device_cmd("install", "-r", str(apk)))

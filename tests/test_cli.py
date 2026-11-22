@@ -5,6 +5,7 @@ import pytest
 
 from tests.fakes import FakeAdb
 from tvclean import cli, debloat, metrics
+from tvclean.config import REPO_ROOT
 from tvclean.backup import list_backups
 from tvclean.debloat import Report
 from tvclean.state import read_state
@@ -122,7 +123,7 @@ def test_cli_feature_airplay_off_then_on_roundtrip(tmp_path, capsys):
     assert code_off == 0, err_off
     assert not f.packages["com.airplay"]["enabled"]
 
-    code_on, _, err_on = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys)
+    code_on, _, err_on = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=lambda p: "n")
     assert code_on == 0, err_on
     assert read_state(f) == before
 
@@ -342,3 +343,167 @@ def test_cli_debloat_reconnect_enter_continues_exit_0(tmp_path, capsys):
     assert code == 0, err
     assert prompts and len(prompts) == f.reboots
     assert all(debloat.RECONNECT_PROMPT in p for p in prompts)
+
+
+HOME_PKG = "dev.tvclean.home"
+HOME_SERVICE = "dev.tvclean.home/dev.tvclean.home.RedirectService"
+BUILD_HINT = "Build it first: cd home && ./gradlew assembleRelease"
+
+
+def home_tv(services=None, enabled=None, installed=True) -> FakeAdb:
+    f = device()
+    if installed:
+        f.packages[HOME_PKG] = {"enabled": True, "path": "/data/app/home/base.apk", "installed": True}
+    if services is not None:
+        f.settings["secure/enabled_accessibility_services"] = services
+    if enabled is not None:
+        f.settings["secure/accessibility_enabled"] = enabled
+    return f
+
+
+def test_cli_home_status_prints_state(tmp_path, capsys):
+    f = home_tv(services=HOME_SERVICE, enabled="1")
+    f.grants.add("android.permission.WRITE_SECURE_SETTINGS")
+    f.appops[f"{HOME_PKG} GET_USAGE_STATS"] = "allow"
+
+    code, out, err = run_cli(["home", "status"], f, tmp_path, capsys)
+
+    assert code == 0, err
+    assert "Installed: yes" in out
+    assert "Version: 1.0" in out
+    assert "Redirect: on" in out
+    assert "WRITE_SECURE_SETTINGS: granted" in out
+    assert "Usage access: allowed" in out
+
+
+def test_cli_home_status_when_not_installed(tmp_path, capsys):
+    code, out, _ = run_cli(["home", "status"], home_tv(installed=False), tmp_path, capsys)
+
+    assert code == 0
+    assert "Installed: no" in out
+
+
+def test_cli_home_install_missing_apk_exits_1(tmp_path, capsys):
+    f = home_tv(installed=False)
+
+    code, _, err = run_cli(["home", "install", "--apk", str(tmp_path / "missing.apk")], f, tmp_path, capsys)
+
+    assert code == 1
+    assert BUILD_HINT in err
+    assert not any(c.startswith("install") for c in f.calls)
+
+
+def test_cli_home_install_runs_and_turns_redirect_on(tmp_path, capsys):
+    apk = tmp_path / "dev.tvclean.home.apk"
+    apk.write_bytes(b"apk")
+    f = home_tv(installed=False)
+
+    code, _, err = run_cli(["home", "install", "--apk", str(apk)], f, tmp_path, capsys)
+
+    assert code == 0, err
+    assert f.settings["secure/accessibility_enabled"] == "1"
+    assert f.grants == {"android.permission.WRITE_SECURE_SETTINGS"}
+
+
+def test_cli_home_on_refuses_wrong_device(tmp_path, capsys):
+    f = home_tv()
+    f.device_name = "mido"
+
+    code, _, err = run_cli(["home", "on"], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "Connected device is mido, not this TV (ginza). Check --device." in err
+    assert "secure/enabled_accessibility_services" not in f.settings
+
+
+def test_cli_home_apps_invalid_pushes_nothing(tmp_path, capsys):
+    bad = tmp_path / "apps.json"
+    bad.write_text('{"version": 1, "apps": []}')
+    f = home_tv()
+
+    code, _, err = run_cli(["home", "apps", str(bad)], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "apps.json invalid: empty apps array" in err
+    assert f.pushes == []
+    assert f.calls == []
+
+
+def test_cli_home_apps_valid_pushes(tmp_path, capsys):
+    good = tmp_path / "apps.json"
+    good.write_text((REPO_ROOT / "home/app/src/main/assets/apps.json").read_text())
+    f = home_tv()
+
+    code, _, err = run_cli(["home", "apps", str(good)], f, tmp_path, capsys)
+
+    assert code == 0, err
+    assert [remote for _, remote in f.pushes] == [
+        "/sdcard/Android/data/dev.tvclean.home/files/apps.json"
+    ]
+
+
+def airplay_off(f, tmp_path, capsys):
+    code, _, err = run_cli(["feature", "airplay", "off"], f, tmp_path, capsys)
+    assert code == 0, err
+
+
+def test_feature_airplay_on_offers_reboot_and_restarts(tmp_path, capsys):
+    f = device()
+    airplay_off(f, tmp_path, capsys)
+    prompts = []
+
+    def answer(prompt):
+        prompts.append(prompt)
+        return "y"
+
+    code, out, err = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=answer)
+
+    assert code == 0, err
+    assert prompts == ["AirPlay starts after a restart. Restart the TV now? [y/N] "]
+    assert f.reboots == 1
+    assert "TV restarted. AirPlay should be available now." in out
+
+
+def test_feature_airplay_on_reboot_waits_for_adb_toggle(tmp_path, capsys):
+    f = device()
+    airplay_off(f, tmp_path, capsys)
+    f.adb_off_after_reboot = True
+    prompts = []
+
+    def answer(prompt):
+        prompts.append(prompt)
+        if prompt.startswith("AirPlay starts"):
+            return "y"
+        f.toggle_adb()
+        return ""
+
+    code, out, err = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=answer)
+
+    assert code == 0, err
+    assert any(p.startswith("The TV isn't accepting adb") for p in prompts)
+    assert "TV restarted. AirPlay should be available now." in out
+
+
+def test_feature_airplay_on_declined_reboot(tmp_path, capsys):
+    f = device()
+    airplay_off(f, tmp_path, capsys)
+
+    code, out, err = run_cli(["feature", "airplay", "on"], f, tmp_path, capsys, input_fn=lambda p: "n")
+
+    assert code == 0, err
+    assert f.reboots == 0
+    assert "AirPlay will start after the next restart." in out
+
+
+def test_feature_updates_on_does_not_offer_reboot(tmp_path, capsys):
+    f = device()
+    code, _, err = run_cli(["feature", "updates", "off"], f, tmp_path, capsys)
+    assert code == 0, err
+
+    def must_not_ask(prompt):
+        raise AssertionError(f"unexpected prompt: {prompt}")
+
+    code, _, err = run_cli(["feature", "updates", "on"], f, tmp_path, capsys, input_fn=must_not_ask)
+
+    assert code == 0, err
+    assert f.reboots == 0

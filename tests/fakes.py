@@ -11,12 +11,15 @@ install_error: when set, `install` raises AdbError with this message (non-transp
 silent_install: when True, `install` succeeds without listing the package afterwards
 split_packages: packages `pm path` reports as split APKs (two `package:` lines)
 device_name: what `getprop ro.product.device` reports (the TV is "ginza")
+push(): records (local, remote) in `pushes`; nothing lands on a filesystem
+pm grant / appops / cmd package compile / dumpsys package / mkdir -p: modelled for the home app
 connect(): a no-op, as adb connect is for the fake
 
 Only the commands the implemented tasks need are handled. Anything else raises
 AssertionError so a test cannot silently rely on unmodelled behaviour.
 """
 
+import shlex
 from pathlib import Path
 
 from tvclean.adb import Adb, AdbError, DeviceUnreachable
@@ -81,6 +84,9 @@ class FakeAdb(Adb):
         self.calls: list[str] = []
         self.pulled: list[str] = []
         self.installed_apks: list[Path] = []
+        self.pushes: list[tuple[Path, str]] = []
+        self.grants: set[str] = set()
+        self.appops: dict[str, str] = {}
         self.reboots = 0
         self.offline = False
         self.adb_off_after_reboot = adb_off_after_reboot
@@ -95,7 +101,7 @@ class FakeAdb(Adb):
         if cmd in self.raw_outputs:
             output = self.raw_outputs[cmd]
         else:
-            output = self._dispatch(cmd.split())
+            output = self._dispatch(shlex.split(cmd))
         if cmd.startswith(CHANGING_COMMANDS):
             self.changes += 1
             if self.fail_after_changes is not None and self.changes >= self.fail_after_changes:
@@ -121,6 +127,10 @@ class FakeAdb(Adb):
             "path": f"/data/app/{name}/base.apk",
             "installed": True,
         }
+
+    def push(self, local: Path, remote: str) -> None:
+        self.calls.append(f"push {remote}")
+        self.pushes.append((local, remote))
 
     def connect(self) -> None:
         self.calls.append("connect")
@@ -186,7 +196,36 @@ class FakeAdb(Adb):
             return WIFI_CONNECTED_OUTPUT
         if args == ["input", "keyevent", "KEYCODE_HOME"]:
             return ""
+        if args[:2] == ["pm", "grant"]:
+            self.grants.add(args[-1])
+            return ""
+        if args[:2] == ["appops", "set"]:
+            self.appops[f"{args[2]} {args[3]}"] = args[4]
+            return ""
+        if args[:2] == ["appops", "get"]:
+            value = self.appops.get(f"{args[2]} {args[3]}")
+            return f"{args[3]}: {value}; time=+1d\n" if value else "No operations.\n"
+        if args[:3] == ["cmd", "package", "compile"]:
+            return "Success\n"
+        if args[:2] == ["mkdir", "-p"]:
+            return ""
+        if args[:2] == ["dumpsys", "package"]:
+            return self._dumpsys_package(args[2])
         raise AssertionError(f"FakeAdb: unhandled command: {' '.join(args)}")
+
+    def _dumpsys_package(self, name: str) -> str:
+        if name not in self.packages or not self.packages[name]["installed"]:
+            return f"Unable to find package: {name}\n"
+        granted = "true" if "android.permission.WRITE_SECURE_SETTINGS" in self.grants else "false"
+        return (
+            "Packages:\n"
+            f"  Package [{name}] (1a2b3c):\n"
+            "    versionName=1.0\n"
+            "    requested permissions:\n"
+            "      android.permission.WRITE_SECURE_SETTINGS\n"
+            "    install permissions:\n"
+            f"      android.permission.WRITE_SECURE_SETTINGS: granted={granted}\n"
+        )
 
     def _tv_input(self) -> str:
         if not self.healthy:

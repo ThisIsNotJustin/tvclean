@@ -7,6 +7,7 @@ from tvclean.adb import Adb, DeviceUnreachable
 from tvclean.backup import list_backups
 from tvclean.catalog import FEATURES, Entry
 from tvclean.debloat import REPORT_FILE, read_applied
+from tvclean.home import home_state
 from tvclean.metrics import mem_available_kb
 from tvclean.state import list_disabled, list_installed
 
@@ -24,6 +25,8 @@ class StatusReport:
     # The first backup's metrics, and the metrics_after of the latest run's report.json.
     baseline: dict | None = None
     latest: dict | None = None
+    # home_state of the Home screen app; None when the app is not installed.
+    home: dict | None = None
 
 
 def _read_json(path: Path) -> dict | None:
@@ -56,6 +59,7 @@ def build_status(adb: Adb, entries: list[Entry], root: Path) -> StatusReport:
         disabled = list_disabled(adb)
         firmware = _firmware(adb)
         mem_kb = mem_available_kb(adb)
+        home = home_state(adb)
     except DeviceUnreachable:
         return StatusReport(connected=False)
 
@@ -77,6 +81,7 @@ def build_status(adb: Adb, entries: list[Entry], root: Path) -> StatusReport:
         mem_available_kb=mem_kb,
         baseline=_first_metrics(root),
         latest=_latest_metrics(root),
+        home=home if home["installed"] else None,
     )
 
 
@@ -102,6 +107,10 @@ def format_status(r: StatusReport) -> str:
     for name in FEATURES:
         state = "on" if r.features.get(name) else "off"
         lines.append(f"Feature {name}: {state}")
+    if r.home is not None:
+        lines.append(
+            "Home redirect: on" if r.home["redirect_on"] else "Home redirect: OFF (run: tvclean home on)"
+        )
     lines.append(f"Disabled packages: {len(r.disabled)}")
     lines.extend(f"  {package}" for package in r.disabled)
     if r.baseline and r.latest:
