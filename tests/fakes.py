@@ -5,6 +5,7 @@ settings: "namespace/key" -> value
 refuse_disable: packages whose `pm disable-user` Fire OS refuses (state unchanged)
 unreachable_after_reboot: adb drops off after a reboot until the test ends
 healthy: when False, `am start -W` reports the activity as missing
+raw_outputs: "full shell command" -> output returned verbatim (models failed commands)
 
 Only the commands the implemented tasks need are handled. Anything else raises
 AssertionError so a test cannot silently rely on unmodelled behaviour.
@@ -24,6 +25,7 @@ class FakeAdb(Adb):
         refuse_disable: set[str] = frozenset(),
         unreachable_after_reboot: bool = False,
         healthy: bool = True,
+        raw_outputs: dict[str, str] | None = None,
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -34,6 +36,7 @@ class FakeAdb(Adb):
         self.refuse_disable = set(refuse_disable)
         self.unreachable_after_reboot = unreachable_after_reboot
         self.healthy = healthy
+        self.raw_outputs = dict(raw_outputs or {})
         self.calls: list[str] = []
         self.pulled: list[str] = []
         self.installed_apks: list[Path] = []
@@ -46,6 +49,8 @@ class FakeAdb(Adb):
         self.calls.append(cmd)
         if self.offline:
             raise DeviceUnreachable("device offline")
+        if cmd in self.raw_outputs:
+            return self.raw_outputs[cmd]
         return self._dispatch(cmd.split())
 
     def pull(self, remote: str, local: Path) -> None:
