@@ -72,7 +72,7 @@ A running log of decisions and progress, newest last. Each entry is dated. Decis
 - Link sessions: every Amazon page lands on Amazon's Home, so the redirect ignores Home for 2.5 s after the app opens a page, restarted when the tab link is actually sent. Amazon's tab links only work when Amazon's Home is on screen, so the app opens Amazon's Home first and sends the tab link ~0.8 s later
 - Focus watching: during a link session the redirect watches which nav tab has focus (a bounded walk of the accessibility tree, since the plain focus lookup returns no id) and returns when Amazon's Home tab gets focus. Pressing Home inside an Amazon tab fires no window event. After Home on the Inputs page Amazon is silent for ~10 s, so the redirect also checks once a second for up to 2 minutes of a session
 - Banner artwork: each installed app's own TV banner. YouTube TV, HBO Max and Apple TV aren't installed on this TV, so they're hidden until installed
-- The hero has one button, "Continue on <App>"
+- The hero shows "CONTINUE ON <APP>" with one "▶ Resume" button ("▶ Open" when there is nothing to resume)
 - Compile for speed instead of a baseline profile: `cmd package compile -m speed` runs at install, since Fire OS can't generate profiles without root
 - The menu panel is opaque. The carousel pauses on focus and while the menu is open
 

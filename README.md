@@ -67,16 +67,18 @@ Then, from the repo:
 tvclean home install              # install the APK, grant the permissions it needs, turn the redirect on
 tvclean home status               # installed, version, permissions, redirect state
 tvclean home on                   # turn the redirect on again (run this after a reboot if the redirect did not come back)
-tvclean home off                  # turn the redirect off; the Amazon home screen comes back
+tvclean home off                  # turn the redirect off and keep it off (survives reboots and opening the app); the Amazon home screen comes back
 tvclean home apps apps.json       # check an app order file and push it to the TV
 ```
 
 `tvclean home apps` checks the file against the app's rules before anything is sent. The app order file is
 `{"version": 1, "apps": [{"label": "Netflix", "packages": ["com.netflix.ninja"], "color": "#E50914"}]}`. The bundled default is `home/app/src/main/assets/apps.json`.
 
+`tvclean home off` is remembered by the app, so a reboot or opening the Home app does not turn the redirect back on. `tvclean home on` (or `home install`) undoes it.
+
 To reach Amazon's own Home from the menu, use the menu's Amazon Home entry. It pauses the redirect for 30 seconds.
 
-**After a reboot**, the redirect may be off until the boot check turns it back on. If `tvclean home status` shows `Home redirect: OFF`, run `tvclean home on`.
+**After a reboot**, the redirect may be off until the boot check turns it back on (unless you ran `tvclean home off`). If `tvclean home status` shows `Home redirect: OFF`, run `tvclean home on`.
 
 The AirPlay and Amazon updates switches are on the Mac, not the TV: use `tvclean feature airplay on|off` and `tvclean feature updates on|off`. Turning AirPlay on needs a restart before it works.
 
