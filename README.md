@@ -6,11 +6,7 @@ Debloats a Fire TV over adb. It turns off Amazon and vendor apps it doesn't need
 
 Needs Python 3.13 and adb (Android platform-tools). Nothing needs installing beyond that: `bin/tvclean` runs from the repo and uses `.venv` if one exists. To install the `tvclean` command instead, run `pip install -e .`.
 
-Enable ADB debugging on the TV (Settings → My Fire TV → Developer options → ADB debugging), then connect:
-
-```
-adb connect 192.168.1.253:5555
-```
+Enable ADB debugging on the TV (Settings → My Fire TV → Developer options → ADB debugging). tvclean connects to the TV itself on each run, so no separate `adb connect` is needed.
 
 The defaults are device `192.168.1.253:5555` and adb at `~/Library/Android/sdk/platform-tools/adb`. Override them with `--device` / `TVCLEAN_DEVICE` and `TVCLEAN_ADB`.
 
@@ -34,7 +30,15 @@ tvclean restore                   # restore to your first backup (see below)
 tvclean restore 20261121-101500   # roll back to a specific backup
 ```
 
-Each run that changes the TV takes a backup first, in `backups/`. Debloat asks you to confirm after each batch: check that the remote, the picture and an app still work, then answer `y`. If not, that batch is undone.
+Each run that changes the TV takes a backup first, in `backups/`.
+
+Debloat starts by showing its plan, for example `120 packages in 12 batches → 12 reboots (about 60 minutes)`, and asks `Start? [y/N]`. `--yes` skips that question and the per-batch ones. The run first reboots the TV once so the baseline is measured on a freshly started TV. Then each batch goes like this: disable the packages, reboot, wait 45 seconds, run the health checks (retried up to three times), and ask you to check the TV. The check covers the remote, the picture, Home and Settings, switching to an HDMI input and back, search from Home, and opening one app. Answer `y` if all of that works. If not, that batch is undone.
+
+Progress is printed as each phase starts. When a run ends, it prints any package that was refused or failed, the packages that were undone, and the memory and Netflix/YouTube/Disney+ launch times before and after. Each backup also gets a `report.json` with the outcome of every package and the same numbers.
+
+Pressing Ctrl-C stops the run. It prints the backup name, and `tvclean restore` undoes the run.
+
+`debloat`, `feature` and `restore` first check that the connected device is the TV this tool was built for (`ro.product.device` is `ginza`). If it isn't, they stop with `Connected device is <x>, not this TV (ginza). Check --device.` and change nothing.
 
 ## Undo
 
@@ -51,7 +55,7 @@ Amazon updates can turn disabled apps back on. Run this routine after an update:
 3. `tvclean debloat`
 4. `tvclean status`
 
-`status` warns when updates are off, and lists any packages that came back since the last run.
+`status` warns when updates are off, and lists any packages that came back since the last run. It also lists the disabled packages by name. After a debloat run it shows free memory and Netflix's cold-launch time, compared with the first backup.
 
 ## If something goes wrong
 
