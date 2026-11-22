@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,22 +42,28 @@ fun AppRow(
     openPage: (AmazonPage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scope = rememberCoroutineScope()
+    // Keep the focused tile aligned to the start padding so the scaled border is never cut off at
+    // the screen edge.
+    fun align(index: Int): Modifier = Modifier.onFocusChanged {
+        if (it.isFocused) scope.launch { listState.animateScrollToItem(index) }
+    }
     LazyRow(
         modifier,
         state = listState,
         contentPadding = PaddingValues(start = Gutter, end = Gutter, top = 12.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        items(apps, key = { it.packageName }) { app ->
-            val first = if (app === apps.first()) Modifier.focusRequester(firstTile) else Modifier
-            AppTile(app, banners[app.packageName], { launch(app.packageName) }, first)
+        itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
+            val first = if (i == 0) Modifier.focusRequester(firstTile) else Modifier
+            AppTile(app, banners[app.packageName], { launch(app.packageName) }, align(i).then(first))
         }
         item(key = "inputs") {
             val first = if (apps.isEmpty()) Modifier.focusRequester(firstTile) else Modifier
             FocusBox(
                 onClick = { openPage(AmazonPage.INPUTS) },
                 shape = Corner10,
-                modifier = TileModifier.then(first),
+                modifier = TileModifier.then(align(apps.size)).then(first),
                 background = InputsColor,
             ) {
                 Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.CenterStart) {
