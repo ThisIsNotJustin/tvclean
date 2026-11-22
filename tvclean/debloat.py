@@ -15,6 +15,7 @@ from tvclean.state import read_state
 from tvclean.tweaks import apply_tweaks
 
 APPLIED_FILE = "applied.json"
+REPORT_FILE = "report.json"
 UNDONE_STATUSES = ("done", "skipped-already")
 APPLIED_STATUSES = ("done", "skipped-already")
 
@@ -44,8 +45,27 @@ def read_applied(root: Path) -> dict | None:
 def _lost_device_message(backup: Path) -> str:
     return (
         f"Lost contact with the TV during debloat. Backup: {backup}. "
-        f"Restore with: tvclean restore {backup.name}"
+        "Restore with: tvclean restore"
     )
+
+
+def _write_report(
+    backup: Path,
+    outcomes: list[Outcome],
+    reverted: list[str],
+    stopped_reason: str | None,
+    metrics_before: dict,
+    metrics_after: dict | None,
+) -> None:
+    """Save what the run did next to the backup, so the owner can read it after the fact."""
+    data = {
+        "outcomes": [{"package": o.package, "status": o.status, "detail": o.detail} for o in outcomes],
+        "reverted": reverted,
+        "stopped_reason": stopped_reason,
+        "metrics_before": metrics_before,
+        "metrics_after": metrics_after,
+    }
+    (backup / REPORT_FILE).write_text(json.dumps(data, indent=2) + "\n")
 
 
 def _revert(adb: Adb, packages: list[str], backup: Path, reverted: list[str]) -> list[str]:
@@ -92,28 +112,29 @@ def run_debloat(
 ) -> Report:
     metrics_before = measure(adb)
     backup = create_backup(adb, root, now(), metrics=metrics_before)
-    changed, failed_tweaks = apply_tweaks(adb) if tweaks else ({}, [])
-    for key, (old, new_value) in changed.items():
-        log(f"Tweak {key}: {old} -> {new_value}")
-    for key in failed_tweaks:
-        log(f"Tweak {key} did not read back as set; left as is")
-    state = read_state(adb)
 
     outcomes: list[Outcome] = []
     reverted: list[str] = []
     stopped_reason: str | None = None
     metrics_after: dict | None = None
 
-    todo: list[Entry] = []
-    for entry in select(entries, tier, features_off):
-        if entry.package not in state.installed:
-            outcomes.append(Outcome(entry.package, "skipped-missing"))
-        elif entry.action == "disable" and entry.package in state.disabled:
-            outcomes.append(Outcome(entry.package, "skipped-already"))
-        else:
-            todo.append(entry)
-
     try:
+        changed, failed_tweaks = apply_tweaks(adb) if tweaks else ({}, [])
+        for key, (old, new_value) in changed.items():
+            log(f"Tweak {key}: {old} -> {new_value}")
+        for key in failed_tweaks:
+            log(f"Tweak {key} did not read back as set; left as is")
+        state = read_state(adb)
+
+        todo: list[Entry] = []
+        for entry in select(entries, tier, features_off):
+            if entry.package not in state.installed:
+                outcomes.append(Outcome(entry.package, "skipped-missing"))
+            elif entry.action == "disable" and entry.package in state.disabled:
+                outcomes.append(Outcome(entry.package, "skipped-already"))
+            else:
+                todo.append(entry)
+
         for number, start in enumerate(range(0, len(todo), batch_size), start=1):
             chunk = todo[start:start + batch_size]
             chunk_outcomes: list[Outcome] = []
@@ -155,10 +176,12 @@ def run_debloat(
     except DeviceUnreachable:
         stopped_reason = _lost_device_message(backup)
     except BaseException:
-        log(f"Stopped unexpectedly. Packages may be disabled. Restore with: tvclean restore {backup.name}")
+        stopped_reason = f"Stopped unexpectedly. Packages may be disabled. Backup: {backup.name}."
+        log(f"{stopped_reason} Restore with: tvclean restore")
         raise
     finally:
         _record_applied(root, tier, features_off, outcomes, reverted)
+        _write_report(backup, outcomes, reverted, stopped_reason, metrics_before, metrics_after)
 
     return Report(
         backup=backup,

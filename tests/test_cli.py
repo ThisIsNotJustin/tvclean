@@ -213,6 +213,23 @@ def test_cli_debloat_unreachable_after_backup_names_backup(tmp_path, capsys):
 
     backups = list_backups(tmp_path)
     assert code == 1
-    assert "TV not reachable at 192.168.1.9:5555" in err
+    assert "Lost contact with the TV during debloat" in err
     assert len(backups) == 1
-    assert f"Your backup is {backups[0].name}; run 'tvclean restore' once the TV is back." in err
+    assert f"Your backup is {backups[0].name}; run 'tvclean restore' to undo." in err
+    assert (backups[0] / "report.json").is_file()
+
+
+def test_cli_debloat_prints_refused_and_reverted(tmp_path, capsys):
+    f = device()
+    f.refuse_disable = {"com.safe"}
+
+    code, out, err = run_cli(["debloat", "--tier", "moderate"], f, tmp_path, capsys, input_fn=lambda _: "n")
+
+    backups = list_backups(tmp_path)
+    assert code == 1
+    assert "refused" in out and "com.safe" in out
+    assert "Reverted: com.mod" in out
+    assert "Cold launch com.netflix.ninja:" in out
+    assert "MemAvailable:" in out
+    assert backups[0].name in err
+    assert "tvclean restore" in err

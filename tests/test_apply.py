@@ -164,3 +164,31 @@ def test_undo_install_not_listed_afterwards_returns_failed(tmp_path):
     out = undo_entry(f, "com.x", tmp_path)
     assert out.status == "failed"
     assert "com.x" in out.detail
+
+
+def test_apply_uninstall_refuses_split_apk(tmp_path):
+    path = "/data/app/com.x/base.apk"
+    f = FakeAdb({"com.x": {"enabled": True, "path": path}}, split_packages={"com.x"})
+    out = apply_entry(f, entry("com.x", "uninstall"), read_state(f), tmp_path)
+    assert out == Outcome(package="com.x", status="refused", detail="split APK; not uninstalled")
+    assert f.pulled == []
+    assert not any(c.startswith("pm uninstall") for c in f.calls)
+    assert "com.x" in f.shell("pm list packages")
+
+
+@pytest.mark.parametrize("pulled_bytes", [None, b""], ids=["missing", "empty"])
+def test_apply_uninstall_fails_on_empty_pull(tmp_path, monkeypatch, pulled_bytes):
+    f = FakeAdb({"com.x": {"enabled": True, "path": "/data/app/com.x/base.apk"}})
+
+    def bad_pull(remote, local):
+        f.calls.append(f"pull {remote}")
+        if pulled_bytes is not None:
+            local.parent.mkdir(parents=True, exist_ok=True)
+            local.write_bytes(pulled_bytes)
+
+    monkeypatch.setattr(f, "pull", bad_pull)
+    out = apply_entry(f, entry("com.x", "uninstall"), read_state(f), tmp_path)
+    assert out.status == "failed"
+    assert "missing or empty" in out.detail
+    assert not any(c.startswith("pm uninstall") for c in f.calls)
+    assert "com.x" in f.shell("pm list packages")

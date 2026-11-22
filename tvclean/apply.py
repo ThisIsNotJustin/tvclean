@@ -1,5 +1,6 @@
 """Apply one catalog entry to the TV, and undo it from a backup."""
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -30,10 +31,18 @@ def _apply_disable(adb: Adb, package: str, state: DeviceState) -> Outcome:
     return Outcome(package, "done")
 
 
+def _apk_paths(output: str) -> list[str]:
+    """Each `package:` line of `pm path` output is one APK of the package."""
+    return [line for line in output.splitlines() if line.strip().startswith("package:")]
+
+
 def _apply_uninstall(adb: Adb, package: str, state: DeviceState, backup_dir: Path) -> Outcome:
     path = state.paths.get(package, "")
     if not path.startswith(DATA_APP_PREFIX):
         return Outcome(package, "refused", "system package; use disable")
+    if len(_apk_paths(adb.shell(f"pm path {shlex.quote(package)}"))) > 1:
+        # Only base.apk is pulled, so a split install could not be restored from the backup.
+        return Outcome(package, "refused", "split APK; not uninstalled")
     apk = backup_dir / "apks" / f"{package}.apk"
     apk.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -42,6 +51,8 @@ def _apply_uninstall(adb: Adb, package: str, state: DeviceState, backup_dir: Pat
         raise  # device lost: the batch runner must see it, not a per-package failure
     except AdbError as err:
         return Outcome(package, "failed", str(err))
+    if not apk.is_file() or apk.stat().st_size == 0:
+        return Outcome(package, "failed", "pulled APK missing or empty; not uninstalled")
     output = adb.shell(f"pm uninstall --user 0 {package}")
     if "Success" not in output:
         return Outcome(package, "failed", output.strip())

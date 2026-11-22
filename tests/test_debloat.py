@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -251,7 +252,9 @@ def test_debloat_unexpected_error_writes_applied_and_reraises(tmp_path):
         )
 
     assert read_applied(tmp_path)["packages"] == names(*range(10))
-    assert any("tvclean restore 20261121-100000" in line for line in logs)
+    assert any("tvclean restore" in line and "Stopped unexpectedly" in line for line in logs)
+    data = json.loads((tmp_path / "20261121-100000" / "report.json").read_text())
+    assert "Stopped unexpectedly" in data["stopped_reason"]
 
 
 def test_applied_json_is_cumulative_across_runs(tmp_path):
@@ -286,3 +289,24 @@ def test_debloat_no_tweaks_skips_settings(tmp_path):
 
     assert not any(call.startswith("settings put") for call in f.calls)
     assert f.settings == {}
+
+
+def test_debloat_writes_report_json(tmp_path):
+    f = device(5)
+    finished = run(f, safe_entries(5), tmp_path / "finished", lambda _: True)
+
+    data = json.loads((finished.backup / "report.json").read_text())
+    assert data["outcomes"][0] == {"package": names(0)[0], "status": "done", "detail": ""}
+    assert len(data["outcomes"]) == 5
+    assert data["reverted"] == []
+    assert data["stopped_reason"] is None
+    assert data["metrics_before"] == {"mem_available_kb": 680000, "cold_launch_ms": {}}
+    assert data["metrics_after"] == {"mem_available_kb": 680000, "cold_launch_ms": {}}
+
+    stopped_device = device(23, unreachable_after_reboot=True)
+    stopped = run(stopped_device, safe_entries(23), tmp_path / "stopped", lambda _: True)
+
+    data = json.loads((stopped.backup / "report.json").read_text())
+    assert len([o for o in data["outcomes"] if o["status"] == "done"]) == 10
+    assert "tvclean restore" in data["stopped_reason"]
+    assert data["metrics_after"] is None

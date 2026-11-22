@@ -9,6 +9,7 @@ raw_outputs: "full shell command" -> output returned verbatim (models failed com
 refuse_enable: packages whose `pm enable` Fire OS refuses (state unchanged)
 install_error: when set, `install` raises AdbError with this message (non-transport failure)
 silent_install: when True, `install` succeeds without listing the package afterwards
+split_packages: packages `pm path` reports as split APKs (two `package:` lines)
 
 Only the commands the implemented tasks need are handled. Anything else raises
 AssertionError so a test cannot silently rely on unmodelled behaviour.
@@ -53,6 +54,7 @@ class FakeAdb(Adb):
         silent_install: bool = False,
         fail_after_changes: int | None = None,
         ignore_settings_writes: set[str] = frozenset(),
+        split_packages: set[str] = frozenset(),
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -69,6 +71,7 @@ class FakeAdb(Adb):
         self.silent_install = silent_install
         self.fail_after_changes = fail_after_changes
         self.ignore_settings_writes = set(ignore_settings_writes)
+        self.split_packages = set(split_packages)
         self.changes = 0
         self.calls: list[str] = []
         self.pulled: list[str] = []
@@ -126,6 +129,8 @@ class FakeAdb(Adb):
     def _dispatch(self, args: list[str]) -> str:
         if args[:2] == ["pm", "list"] and args[2:3] == ["packages"]:
             return self._list_packages(args[3:])
+        if args[:2] == ["pm", "path"]:
+            return self._pm_path(args[-1])
         if args[:1] == ["pm"] and args[1:2] == ["disable-user"]:
             return self._disable(args[-1])
         if args[:1] == ["pm"] and args[1:2] == ["enable"]:
@@ -198,6 +203,15 @@ class FakeAdb(Adb):
             return f"Exception occurred while executing 'enable': Cannot enable {name}"
         self.packages[name]["enabled"] = True
         return f"Package {name} new state: enabled"
+
+    def _pm_path(self, name: str) -> str:
+        pkg = self.packages.get(name)
+        if pkg is None or not pkg["installed"]:
+            return ""
+        lines = [f"package:{pkg['path']}"]
+        if name in self.split_packages:
+            lines.append(f"package:/data/app/{name}/split_config.arm64_v8a.apk")
+        return "\n".join(lines) + "\n"
 
     def _uninstall(self, name: str) -> str:
         if name not in self.packages or not self.packages[name]["installed"]:

@@ -12,6 +12,7 @@ from tvclean.catalog import FEATURES, CatalogError, load_catalog
 from tvclean.config import REPO_ROOT, catalog_path, default_adb_path, default_device
 from tvclean.debloat import Report, run_debloat
 from tvclean.features import set_feature
+from tvclean.metrics import LAUNCH_TARGETS
 from tvclean.restore import NoBackups, run_restore
 from tvclean.status import build_status, format_status
 
@@ -80,12 +81,29 @@ def _failed(outcomes) -> int:
     return sum(1 for o in outcomes if o.status in ("failed", "refused"))
 
 
-def _summary(report: Report) -> list[str]:
+def _mem(kb: int | None) -> str:
+    return "-" if kb is None else f"{kb // 1024} MB"
+
+
+def _ms(value: int | None) -> str:
+    return "-" if value is None else f"{value} ms"
+
+
+def _debloat_lines(report: Report) -> list[str]:
     counts = Counter(o.status for o in report.outcomes)
     lines = ["Packages: " + (", ".join(f"{n} {s}" for s, n in sorted(counts.items())) or "none")]
-    before = report.metrics_before["mem_available_kb"] // 1024
-    after = report.metrics_after["mem_available_kb"] // 1024 if report.metrics_after else None
-    lines.append(f"MemAvailable: {before} MB -> {after} MB")
+    for o in report.outcomes:
+        if o.status not in ("done", "skipped-already"):
+            lines.append(f"  {o.status:16} {o.package} {o.detail}".rstrip())
+    if report.reverted:
+        lines.append("Reverted: " + ", ".join(report.reverted))
+    before_ms = report.metrics_before.get("cold_launch_ms", {})
+    after = report.metrics_after or {}
+    after_ms = after.get("cold_launch_ms", {})
+    for pkg in LAUNCH_TARGETS:
+        lines.append(f"Cold launch {pkg}: {_ms(before_ms.get(pkg))} -> {_ms(after_ms.get(pkg))}")
+    before_mem = report.metrics_before.get("mem_available_kb")
+    lines.append(f"MemAvailable: {_mem(before_mem)} -> {_mem(after.get('mem_available_kb'))}")
     lines.append(f"Backup: {report.backup.name}")
     return lines
 
@@ -99,7 +117,6 @@ def main(
     args = build_parser().parse_args(argv)
     root = DEFAULT_ROOT if root is None else root
     device = args.device or default_device()
-    backups_before: set[Path] = set()
 
     try:
         if args.command == "backups":
@@ -162,7 +179,6 @@ def main(
         else:
             confirm = lambda prompt: _ask(input_fn, prompt)  # noqa: E731
         features_off = set(FEATURES) - args.keep
-        backups_before = set(list_backups(root))
         report = run_debloat(
             adb,
             entries,
@@ -172,11 +188,15 @@ def main(
             confirm=confirm,
             tweaks=not args.no_tweaks,
         )
+        for line in _debloat_lines(report):
+            print(line)
         if report.stopped_reason:
             print(report.stopped_reason, file=sys.stderr)
+            print(
+                f"Your backup is {report.backup.name}; run 'tvclean restore' to undo.",
+                file=sys.stderr,
+            )
             return 1
-        for line in _summary(report):
-            print(line)
         return 0
 
     except DeviceUnreachable:
@@ -184,12 +204,6 @@ def main(
             f"TV not reachable at {device}. Is it on and is ADB debugging enabled?",
             file=sys.stderr,
         )
-        made = [b for b in list_backups(root) if b not in backups_before]
-        if args.command == "debloat" and made:
-            print(
-                f"Your backup is {made[0].name}; run 'tvclean restore' once the TV is back.",
-                file=sys.stderr,
-            )
         return 1
     except NoBackups as err:
         print(str(err), file=sys.stderr)
