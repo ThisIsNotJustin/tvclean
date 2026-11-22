@@ -66,8 +66,9 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
     }
 
     // Remembered across carousel re-creation so a rebuilt carousel keeps the hero's pause state.
+    // The carousel also pauses while the menu is open.
     var heroFocused by remember { mutableStateOf(false) }
-    carousel.setPaused(heroFocused)
+    carousel.setPaused(heroFocused || state.menuOpen)
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(carousel, lifecycle) {
@@ -93,14 +94,20 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
             // First tile not attached yet; the next reset or load retries.
         }
     }
-    // Closing the menu returns focus to the ☰ button in the nav pill.
+    // Closing the menu returns focus to the ☰ button in the nav pill, unless the close came with a
+    // focus reset (Home press), which puts focus on the first app tile instead.
     var menuWasOpen by remember { mutableStateOf(false) }
+    var menuOpenedAtReset by remember { mutableIntStateOf(0) }
+    var menuButtonFocused by remember { mutableStateOf(false) }
     LaunchedEffect(state.menuOpen) {
         if (state.menuOpen) {
             menuWasOpen = true
+            menuOpenedAtReset = state.focusResetKey
         } else if (menuWasOpen) {
             menuWasOpen = false
-            menuButton.requestFocusUntil()
+            if (state.focusResetKey == menuOpenedAtReset) {
+                menuButton.requestFocusUntil { menuButtonFocused }
+            }
         }
     }
 
@@ -116,7 +123,7 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
                         count = state.slides.size,
                         progress = { progress.floatValue },
                         onLaunch = { actions.launch(slide.app.packageName) },
-                        onButtonFocus = { heroFocused = it; carousel.setPaused(it) },
+                        onButtonFocus = { heroFocused = it },
                         onPrevious = { carousel.previous(); sync() },
                         onNext = { carousel.next(); sync() },
                         modifier = Modifier.fillMaxSize(),
@@ -140,10 +147,11 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
             }
         }
         NavPill(
-            actions.openMenu,
-            actions.openPage,
-            menuButton,
-            Modifier.align(Alignment.TopCenter).padding(top = 20.dp),
+            openMenu = actions.openMenu,
+            openPage = actions.openPage,
+            menuButton = menuButton,
+            onMenuFocus = { menuButtonFocused = it },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 20.dp),
         )
         Clock(Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 32.dp))
         HomeMenu(open = state.menuOpen, actions = actions, firstItem = menuFirstItem)

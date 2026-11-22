@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +43,7 @@ fun NavPill(
     openMenu: () -> Unit,
     openPage: (AmazonPage) -> Unit,
     menuButton: FocusRequester,
+    onMenuFocus: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -54,7 +56,9 @@ fun NavPill(
         FocusBox(
             onClick = openMenu,
             shape = ItemShape,
-            modifier = Modifier.focusRequester(menuButton),
+            modifier = Modifier
+                .focusRequester(menuButton)
+                .onFocusChanged { onMenuFocus(it.isFocused) },
             focusedBackground = Color.White,
         ) { focused ->
             Column(

@@ -42,7 +42,7 @@ import androidx.compose.ui.window.PopupProperties
 import dev.tvclean.home.SystemSwitches
 import dev.tvclean.home.core.AmazonPage
 
-private val PanelColor = Color(0xE6101216)
+private val PanelColor = Color(0xFF101216)
 private val ScrimColor = Color(0x66000000)
 private val PanelWidth = 320.dp
 private val SwitchShape = RoundedCornerShape(13.dp)
