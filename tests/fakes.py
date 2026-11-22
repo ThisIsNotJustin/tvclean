@@ -6,6 +6,9 @@ refuse_disable: packages whose `pm disable-user` Fire OS refuses (state unchange
 unreachable_after_reboot: adb drops off after a reboot until the test ends
 healthy: when False, `am start -W` reports the activity as missing
 raw_outputs: "full shell command" -> output returned verbatim (models failed commands)
+refuse_enable: packages whose `pm enable` Fire OS refuses (state unchanged)
+install_error: when set, `install` raises AdbError with this message (non-transport failure)
+silent_install: when True, `install` succeeds without listing the package afterwards
 
 Only the commands the implemented tasks need are handled. Anything else raises
 AssertionError so a test cannot silently rely on unmodelled behaviour.
@@ -13,7 +16,7 @@ AssertionError so a test cannot silently rely on unmodelled behaviour.
 
 from pathlib import Path
 
-from tvclean.adb import Adb, DeviceUnreachable
+from tvclean.adb import Adb, AdbError, DeviceUnreachable
 
 
 class FakeAdb(Adb):
@@ -26,6 +29,9 @@ class FakeAdb(Adb):
         unreachable_after_reboot: bool = False,
         healthy: bool = True,
         raw_outputs: dict[str, str] | None = None,
+        refuse_enable: set[str] = frozenset(),
+        install_error: str | None = None,
+        silent_install: bool = False,
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -37,6 +43,9 @@ class FakeAdb(Adb):
         self.unreachable_after_reboot = unreachable_after_reboot
         self.healthy = healthy
         self.raw_outputs = dict(raw_outputs or {})
+        self.refuse_enable = set(refuse_enable)
+        self.install_error = install_error
+        self.silent_install = silent_install
         self.calls: list[str] = []
         self.pulled: list[str] = []
         self.installed_apks: list[Path] = []
@@ -62,7 +71,11 @@ class FakeAdb(Adb):
     def install(self, apk: Path) -> None:
         self.calls.append(f"install {apk}")
         self.installed_apks.append(apk)
+        if self.install_error is not None:
+            raise AdbError(self.install_error)
         name = apk.stem
+        if self.silent_install:
+            return
         self.packages[name] = {
             "enabled": True,
             "path": f"/data/app/{name}/base.apk",
@@ -127,6 +140,8 @@ class FakeAdb(Adb):
     def _enable(self, name: str) -> str:
         if name not in self.packages:
             return f"Error: Unknown package: {name}"
+        if name in self.refuse_enable:
+            return f"Exception occurred while executing 'enable': Cannot enable {name}"
         self.packages[name]["enabled"] = True
         return f"Package {name} new state: enabled"
 

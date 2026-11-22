@@ -6,7 +6,7 @@ from typing import Literal
 
 from tvclean.adb import Adb, AdbError, DeviceUnreachable
 from tvclean.catalog import Entry
-from tvclean.state import DeviceState, _parse_packages
+from tvclean.state import DeviceState, list_disabled, list_installed
 
 DATA_APP_PREFIX = "/data/app/"
 REFUSAL_PATTERN = re.compile(r"Exception|not allowed|Cannot disable")
@@ -21,19 +21,11 @@ class Outcome:
     detail: str = ""
 
 
-def _disabled_now(adb: Adb) -> frozenset[str]:
-    return _parse_packages(adb.shell("pm list packages -d"))
-
-
-def _installed_now(adb: Adb) -> frozenset[str]:
-    return _parse_packages(adb.shell("pm list packages"))
-
-
 def _apply_disable(adb: Adb, package: str, state: DeviceState) -> Outcome:
     if package in state.disabled:
         return Outcome(package, "skipped-already")
     output = adb.shell(f"pm disable-user --user 0 {package}")
-    if REFUSAL_PATTERN.search(output) or package not in _disabled_now(adb):
+    if REFUSAL_PATTERN.search(output) or package not in list_disabled(adb):
         return Outcome(package, "refused", output.strip())
     return Outcome(package, "done")
 
@@ -47,7 +39,7 @@ def _apply_uninstall(adb: Adb, package: str, state: DeviceState, backup_dir: Pat
     try:
         adb.pull(path, apk)
     except DeviceUnreachable:
-        raise
+        raise  # device lost: the batch runner must see it, not a per-package failure
     except AdbError as err:
         return Outcome(package, "failed", str(err))
     output = adb.shell(f"pm uninstall --user 0 {package}")
@@ -67,16 +59,24 @@ def apply_entry(adb: Adb, entry: Entry, state: DeviceState, backup_dir: Path) ->
 
 def undo_entry(adb: Adb, package: str, backup_dir: Path) -> Outcome:
     apk = backup_dir / "apks" / f"{package}.apk"
-    installed = package in _installed_now(adb)
-    if not installed:
+    if package not in list_installed(adb):
         if apk.is_file():
-            adb.install(apk)
+            try:
+                adb.install(apk)
+            except DeviceUnreachable:
+                raise  # device lost: the batch runner must see it, not a per-package failure
+            except AdbError as err:
+                return Outcome(package, "failed", str(err))
+            if package not in list_installed(adb):
+                return Outcome(package, "failed", f"pm list packages does not show {package} after install")
             return Outcome(package, "done")
-        adb.shell(f"cmd package install-existing {package}")
-        if package not in _installed_now(adb):
-            return Outcome(package, "failed", "install-existing did not restore the package")
+        output = adb.shell(f"cmd package install-existing {package}")
+        if package not in list_installed(adb):
+            return Outcome(package, "failed", output.strip())
         return Outcome(package, "done")
-    if package in _disabled_now(adb):
-        adb.shell(f"pm enable {package}")
+    if package in list_disabled(adb):
+        output = adb.shell(f"pm enable {package}")
+        if package in list_disabled(adb):
+            return Outcome(package, "failed", output.strip())
         return Outcome(package, "done")
     return Outcome(package, "skipped-already")

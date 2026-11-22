@@ -47,6 +47,16 @@ def _parse_paths(output: str) -> dict[str, str]:
     return paths
 
 
+def list_installed(adb: Adb) -> frozenset[str]:
+    """Packages `pm list packages` reports on the TV right now."""
+    return _parse_packages(adb.shell("pm list packages"))
+
+
+def list_disabled(adb: Adb) -> frozenset[str]:
+    """Packages `pm list packages -d` reports as disabled right now."""
+    return _parse_packages(adb.shell("pm list packages -d"))
+
+
 def _read_setting(adb: Adb, key: str) -> str:
     namespace, _, name = key.partition(":")
     value = adb.shell(f"settings get {namespace} {name}").strip()
@@ -63,7 +73,7 @@ def read_state(adb: Adb) -> DeviceState:
             "pm list packages returned no packages: "
             f"{installed_output[:ERROR_SNIPPET_CHARS]}"
         )
-    disabled = _parse_packages(adb.shell("pm list packages -d"))
+    disabled = list_disabled(adb)
     paths = _parse_paths(adb.shell("pm list packages -f"))
     settings = {key: _read_setting(adb, key) for key in TRACKED_SETTINGS}
     return DeviceState(

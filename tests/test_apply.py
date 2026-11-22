@@ -124,3 +124,43 @@ def test_undo_already_fine_is_skipped_already(tmp_path):
     f = FakeAdb({"com.x": {"enabled": True, "path": "/system/app/x/x.apk"}})
     out = undo_entry(f, "com.x", tmp_path)
     assert out == Outcome(package="com.x", status="skipped-already")
+
+
+def test_undo_install_failure_returns_failed(tmp_path):
+    f = FakeAdb(
+        {"com.x": {"enabled": True, "path": "/data/app/com.x/base.apk"}},
+        install_error="INSTALL_FAILED_VERSION_DOWNGRADE",
+    )
+    apks = tmp_path / "apks"
+    apks.mkdir()
+    (apks / "com.x.apk").write_bytes(b"apk")
+    f.shell("pm uninstall --user 0 com.x")
+    out = undo_entry(f, "com.x", tmp_path)
+    assert out.status == "failed"
+    assert "INSTALL_FAILED_VERSION_DOWNGRADE" in out.detail
+    assert "com.x" not in f.shell("pm list packages")
+
+
+def test_undo_enable_not_effective_returns_failed(tmp_path):
+    f = FakeAdb(
+        {"com.x": {"enabled": False, "path": "/system/app/x/x.apk"}},
+        refuse_enable={"com.x"},
+    )
+    out = undo_entry(f, "com.x", tmp_path)
+    assert out.status == "failed"
+    assert "Cannot enable" in out.detail
+    assert "package:com.x" in f.shell("pm list packages -d")
+
+
+def test_undo_install_not_listed_afterwards_returns_failed(tmp_path):
+    f = FakeAdb(
+        {"com.x": {"enabled": True, "path": "/data/app/com.x/base.apk"}},
+        silent_install=True,
+    )
+    apks = tmp_path / "apks"
+    apks.mkdir()
+    (apks / "com.x.apk").write_bytes(b"apk")
+    f.shell("pm uninstall --user 0 com.x")
+    out = undo_entry(f, "com.x", tmp_path)
+    assert out.status == "failed"
+    assert "com.x" in out.detail
