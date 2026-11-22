@@ -61,6 +61,20 @@ def _revert(adb: Adb, packages: list[str], backup: Path, reverted: list[str]) ->
     return failures
 
 
+def _record_applied(
+    root: Path, tier: str, features_off: set[str], outcomes: list[Outcome], reverted: list[str]
+) -> None:
+    """Write applied.json cumulatively: earlier runs' packages stay until reverted."""
+    previous = read_applied(root)
+    carried = set(previous["packages"]) if previous else set()
+    this_run = {o.package for o in outcomes if o.status in APPLIED_STATUSES}
+    write_applied(root, {
+        "tier": tier,
+        "features_off": sorted(features_off),
+        "packages": sorted((carried | this_run) - set(reverted)),
+    })
+
+
 def run_debloat(
     adb: Adb,
     entries: list[Entry],
@@ -95,8 +109,16 @@ def run_debloat(
     try:
         for number, start in enumerate(range(0, len(todo), batch_size), start=1):
             chunk = todo[start:start + batch_size]
-            chunk_outcomes = [apply_entry(adb, entry, state, backup) for entry in chunk]
-            outcomes.extend(chunk_outcomes)
+            chunk_outcomes: list[Outcome] = []
+            for entry in chunk:
+                try:
+                    outcome = apply_entry(adb, entry, state, backup)
+                except DeviceUnreachable:
+                    # The change may have landed before the TV dropped; record it so the report names it.
+                    outcomes.append(Outcome(entry.package, "failed", "device lost mid-apply; state unknown"))
+                    raise
+                outcomes.append(outcome)
+                chunk_outcomes.append(outcome)
             done = [o.package for o in chunk_outcomes if o.status == "done"]
             if not done:
                 log(f"Batch {number}: nothing changed")
@@ -125,13 +147,11 @@ def run_debloat(
             metrics_after = measure(adb)
     except DeviceUnreachable:
         stopped_reason = _lost_device_message(backup)
-
-    applied = sorted({o.package for o in outcomes if o.status in APPLIED_STATUSES} - set(reverted))
-    write_applied(root, {
-        "tier": tier,
-        "features_off": sorted(features_off),
-        "packages": applied,
-    })
+    except BaseException:
+        log(f"Stopped unexpectedly. Packages may be disabled. Restore with: tvclean restore {backup.name}")
+        raise
+    finally:
+        _record_applied(root, tier, features_off, outcomes, reverted)
 
     return Report(
         backup=backup,

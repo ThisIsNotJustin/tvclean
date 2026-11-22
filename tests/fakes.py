@@ -18,6 +18,9 @@ from pathlib import Path
 
 from tvclean.adb import Adb, AdbError, DeviceUnreachable
 
+# Shell commands that change device state; counted for fail_after_changes.
+CHANGING_COMMANDS = ("pm disable-user", "pm enable ", "pm uninstall", "cmd package install-existing")
+
 RESOLVE_HEADER = "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n"
 
 # Shape copied from the TV's `dumpsys connectivity` Wi-Fi line. Only the type and state
@@ -48,6 +51,7 @@ class FakeAdb(Adb):
         refuse_enable: set[str] = frozenset(),
         install_error: str | None = None,
         silent_install: bool = False,
+        fail_after_changes: int | None = None,
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -62,6 +66,8 @@ class FakeAdb(Adb):
         self.refuse_enable = set(refuse_enable)
         self.install_error = install_error
         self.silent_install = silent_install
+        self.fail_after_changes = fail_after_changes
+        self.changes = 0
         self.calls: list[str] = []
         self.pulled: list[str] = []
         self.installed_apks: list[Path] = []
@@ -75,8 +81,14 @@ class FakeAdb(Adb):
         if self.offline:
             raise DeviceUnreachable("device offline")
         if cmd in self.raw_outputs:
-            return self.raw_outputs[cmd]
-        return self._dispatch(cmd.split())
+            output = self.raw_outputs[cmd]
+        else:
+            output = self._dispatch(cmd.split())
+        if cmd.startswith(CHANGING_COMMANDS):
+            self.changes += 1
+            if self.fail_after_changes is not None and self.changes >= self.fail_after_changes:
+                self.offline = True  # the TV drops off right after this change
+        return output
 
     def pull(self, remote: str, local: Path) -> None:
         self.calls.append(f"pull {remote}")

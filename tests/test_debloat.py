@@ -1,6 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from tvclean.catalog import Entry
 from tests.fakes import FakeAdb
 from tvclean.debloat import read_applied, run_debloat, write_applied
@@ -160,3 +162,108 @@ def test_applied_round_trip(tmp_path):
     data = {"tier": "safe", "features_off": ["alexa"], "packages": ["com.example.x"]}
     write_applied(tmp_path, data)
     assert read_applied(tmp_path) == data
+
+
+def names(*indexes: int) -> list[str]:
+    return [f"com.example.safe{i:02d}" for i in indexes]
+
+
+def test_debloat_revert_reboots(tmp_path):
+    f = device(23)
+    answers = iter([True, False])
+    run(f, safe_entries(23), tmp_path, lambda _: next(answers))
+    assert f.reboots == 3  # batch 1, batch 2, and the revert of batch 2
+
+
+def test_debloat_zero_done_chunk_skips_reboot(tmp_path):
+    f = device(5, refuse_disable=set(names(*range(5))))
+    confirms = []
+
+    report = run(f, safe_entries(5), tmp_path, lambda p: confirms.append(p) or True)
+
+    assert f.reboots == 0
+    assert confirms == []
+    assert report.stopped_reason is None
+    assert all(o.status == "refused" for o in report.outcomes)
+    assert report.metrics_after is not None
+
+
+def test_debloat_refused_does_not_revert(tmp_path):
+    f = device(5, refuse_disable={names(2)[0]})
+    confirms = []
+
+    report = run(f, safe_entries(5), tmp_path, lambda p: confirms.append(p) or True)
+
+    assert len(confirms) == 1
+    assert report.reverted == []
+    assert report.stopped_reason is None
+    assert f.packages[names(2)[0]]["enabled"], "refused package stays enabled"
+    assert not f.packages[names(0)[0]]["enabled"]
+    assert report.metrics_after is not None
+
+
+def test_debloat_unreachable_during_revert_stops_with_restore_hint(tmp_path):
+    # 20 disables happen before the revert; the second revert enable drops the TV off.
+    f = device(23, fail_after_changes=22)
+    answers = iter([True, False])
+
+    report = run(f, safe_entries(23), tmp_path, lambda _: next(answers))
+
+    assert report.stopped_reason is not None
+    assert "tvclean restore" in report.stopped_reason
+    assert report.backup.name in report.stopped_reason
+    assert report.reverted == names(10)
+    assert f.reboots == 2, "no reboot after the failed revert"
+    applied = read_applied(tmp_path)
+    assert names(10)[0] not in applied["packages"]
+    assert names(11)[0] in applied["packages"]
+
+
+def test_debloat_unreachable_mid_apply_records_prior_outcomes(tmp_path):
+    f = device(23, fail_after_changes=3)
+
+    report = run(f, safe_entries(23), tmp_path, lambda _: True)
+
+    assert report.stopped_reason is not None
+    assert "tvclean restore" in report.stopped_reason
+    done = [o.package for o in report.outcomes if o.status == "done"]
+    assert done == names(0, 1)
+    # The in-flight disable may have landed on the TV before the loss; it is recorded as unknown.
+    assert [(o.package, o.status) for o in report.outcomes if o.status == "failed"] == [(names(2)[0], "failed")]
+    assert f.reboots == 0
+    assert read_applied(tmp_path)["packages"] == names(0, 1)
+
+
+def test_debloat_unexpected_error_writes_applied_and_reraises(tmp_path):
+    from tvclean.debloat import run_debloat as rd
+
+    f = device(23)
+    logs = []
+
+    def confirm(_prompt):
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        rd(
+            f, safe_entries(23), tier="safe", features_off=set(), root=tmp_path,
+            confirm=confirm, now=clock(datetime(2026, 11, 21, 10, 0, 0)),
+            measure=fake_measure, log=logs.append,
+        )
+
+    assert read_applied(tmp_path)["packages"] == names(*range(10))
+    assert any("tvclean restore 20261121-100000" in line for line in logs)
+
+
+def test_applied_json_is_cumulative_across_runs(tmp_path):
+    extra = "com.example.extra"
+    f = device(0)
+    f.packages[extra] = {"enabled": True, "path": "/data/app/extra/base.apk", "installed": True}
+    entries = [Entry(package=extra, action="uninstall", reason="extra", tier="safe")]
+    now = clock(datetime(2026, 11, 21, 10, 0, 0))
+
+    run(f, entries, tmp_path, lambda _: True, now=now)
+    assert read_applied(tmp_path)["packages"] == [extra]
+
+    report = run(f, entries, tmp_path, lambda _: True, now=now)
+    assert report.outcomes[0].status == "skipped-missing"
+    assert read_applied(tmp_path)["packages"] == [extra]
