@@ -53,7 +53,7 @@ Pressing Ctrl-C stops the run. It prints the backup name, and `tvclean restore` 
 
 ## Home screen
 
-The Home screen app (`home/`, package `dev.tvclean.home`) replaces the Amazon home row with a short list of streaming apps. It is built on the Mac and installed over adb.
+The Home screen app (`home/`, package `dev.tvclean.home`) is what the Home button shows instead of Amazon's home screen. It has a navigation bar (Search, Home, Movies, TV Shows, Live, Sports, News), a clock, a "Continue on <App>" carousel over the three most recently used apps, and a row of installed apps in a fixed order with an Inputs tile. The ☰ menu holds Settings, Inputs, Amazon Home, the Alexa voice switch, the AirPlay and updates status, and About (which shows the redirect state). Apps that aren't installed are hidden. It is built on the Mac and installed over adb.
 
 Build it first (needs the Gradle wrapper and JDK 17):
 
@@ -75,6 +75,10 @@ tvclean home apps apps.json       # check an app order file and push it to the T
 `{"version": 1, "apps": [{"label": "Netflix", "packages": ["com.netflix.ninja"], "color": "#E50914"}]}`. The bundled default is `home/app/src/main/assets/apps.json`.
 
 To reach Amazon's own Home from the menu, use the menu's Amazon Home entry. It pauses the redirect for 30 seconds.
+
+**After a reboot**, the redirect may be off until the boot check turns it back on. If `tvclean home status` shows `Home redirect: OFF`, run `tvclean home on`.
+
+The AirPlay and Amazon updates switches are on the Mac, not the TV: use `tvclean feature airplay on|off` and `tvclean feature updates on|off`. Turning AirPlay on needs a restart before it works.
 
 `tvclean status` shows `Home redirect: on` or `Home redirect: OFF (run: tvclean home on)` when the app is installed.
 
