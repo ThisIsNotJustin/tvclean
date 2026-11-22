@@ -149,3 +149,43 @@ def test_status_without_report_omits_comparison(tmp_path):
 
     assert "Free memory" not in text
     assert "Netflix cold launch" not in text
+
+
+HOME_SERVICE = "dev.tvclean.home/dev.tvclean.home.RedirectService"
+
+
+def status_device(home_installed: bool, services: str | None = None, enabled: str | None = None) -> FakeAdb:
+    packages = {"com.safe": {"enabled": True, "path": "/system/app/s/s.apk"}}
+    if home_installed:
+        packages["dev.tvclean.home"] = {"enabled": True, "path": "/data/app/home/base.apk"}
+    settings = {}
+    if services is not None:
+        settings["secure/enabled_accessibility_services"] = services
+    if enabled is not None:
+        settings["secure/accessibility_enabled"] = enabled
+    return FakeAdb(
+        packages,
+        settings=settings,
+        raw_outputs={"getprop ro.build.version.name": "Fire OS 7.6.0.1\n"},
+    )
+
+
+def test_status_warns_when_redirect_off(tmp_path):
+    text = format_status(build_status(status_device(True), ENTRIES, tmp_path))
+
+    assert "Home redirect: OFF (run: tvclean home on)" in text
+
+
+def test_status_reports_redirect_on(tmp_path):
+    f = status_device(True, services=HOME_SERVICE, enabled="1")
+
+    text = format_status(build_status(f, ENTRIES, tmp_path))
+
+    assert "Home redirect: on" in text
+    assert "OFF" not in text.split("Home redirect")[1].splitlines()[0]
+
+
+def test_status_has_no_home_line_when_app_not_installed(tmp_path):
+    text = format_status(build_status(status_device(False), ENTRIES, tmp_path))
+
+    assert "Home redirect" not in text

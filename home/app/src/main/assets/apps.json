@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "apps": [
+    {"label": "Disney+", "packages": ["com.disney.disneyplus"], "color": "#1B4FBF"},
+    {"label": "Hulu", "packages": ["com.hulu.plus"], "color": "#1CE783"},
+    {"label": "Prime Video", "packages": ["com.amazon.firebat"], "color": "#146EB4"},
+    {"label": "Paramount+", "packages": ["com.cbs.ott"], "color": "#0064FF"},
+    {"label": "Netflix", "packages": ["com.netflix.ninja"], "color": "#E50914"},
+    {"label": "YouTube", "packages": ["com.amazon.firetv.youtube"], "color": "#FF0000"},
+    {"label": "YouTube TV", "packages": ["com.amazon.firetv.youtube.tv"], "color": "#3A3A3C"},
+    {"label": "HBO Max", "packages": ["com.wbd.stream", "com.hbo.hbonow"], "color": "#5B2BE0"},
+    {"label": "Apple TV", "packages": ["com.apple.atve.amazon.appletv"], "color": "#3A3A3C"}
+  ]
+}

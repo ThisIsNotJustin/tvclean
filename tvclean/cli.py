@@ -10,8 +10,18 @@ from tvclean.adb import AdbError, DeviceUnreachable, RealAdb
 from tvclean.backup import create_backup, list_backups
 from tvclean.catalog import FEATURES, CatalogError, load_catalog, select
 from tvclean.config import EXPECTED_DEVICE, REPO_ROOT, catalog_path, default_adb_path, default_device
-from tvclean.debloat import Report, plan_line, run_debloat
+from tvclean.debloat import Report, _wait_for_tv, plan_line, run_debloat
 from tvclean.features import set_feature
+from tvclean.home import (
+    APPS_REMOTE,
+    DEFAULT_APK,
+    home_install,
+    home_off,
+    home_on,
+    home_state,
+    push_apps,
+    validate_apps,
+)
 from tvclean.metrics import LAUNCH_TARGETS
 from tvclean.restore import NoBackups, run_restore
 from tvclean.status import build_status, format_status
@@ -89,6 +99,16 @@ def build_parser() -> argparse.ArgumentParser:
     feature.add_argument("state", choices=["on", "off"])
 
     sub.add_parser("backups", help="List backups in backups/")
+
+    home = sub.add_parser("home", help="Install and manage the Home screen app (dev.tvclean.home)")
+    home_sub = home.add_subparsers(dest="home_command", required=True, metavar="ACTION")
+    home_install_parser = home_sub.add_parser("install", help="Install the app and turn its redirect on")
+    home_install_parser.add_argument("--apk", type=Path, default=DEFAULT_APK, help="APK to install (default: home/app/build/outputs/apk/release/app-release.apk)")
+    home_sub.add_parser("on", help="Turn the app's accessibility redirect on")
+    home_sub.add_parser("off", help="Turn the app's accessibility redirect off")
+    home_sub.add_parser("status", help="Show whether the app is installed, its permissions and redirect state")
+    home_apps = home_sub.add_parser("apps", help="Check an apps.json app order and push it to the TV")
+    home_apps.add_argument("file", type=Path, metavar="FILE")
     return parser
 
 
@@ -128,6 +148,51 @@ def _debloat_lines(report: Report) -> list[str]:
     return lines
 
 
+BUILD_HINT = "Build it first: cd home && ./gradlew assembleRelease"
+
+
+def _offer_airplay_restart(adb, input_fn: Callable[[str], str]) -> None:
+    if not _ask(input_fn, "AirPlay starts after a restart. Restart the TV now? [y/N]"):
+        print("AirPlay will start after the next restart.")
+        return
+    adb.reboot()
+    _wait_for_tv(adb, _reconnect(input_fn), 150)
+    print("TV restarted. AirPlay should be available now.")
+    state = home_state(adb)
+    if state["installed"]:
+        print("Home redirect: on" if state["redirect_on"] else "Home redirect: OFF (run: tvclean home on)")
+
+
+def _home(args, adb, input_fn: Callable[[str], str]) -> int:
+    if args.home_command == "install":
+        for line in home_install(adb, args.apk):
+            print(line)
+        return 0
+    if args.home_command == "on":
+        home_on(adb)
+        print("Home redirect: on")
+        return 0
+    if args.home_command == "off":
+        home_off(adb)
+        print("Home redirect: off")
+        return 0
+    if args.home_command == "apps":
+        push_apps(adb, args.file)
+        print(f"Pushed {args.file} to {APPS_REMOTE}")
+        return 0
+    state = home_state(adb)
+    if not state["installed"]:
+        print("Installed: no")
+        print("Run: tvclean home install")
+        return 0
+    print("Installed: yes")
+    print(f"Version: {state['version'] or 'unknown'}")
+    print(f"Redirect: {'on' if state['redirect_on'] else 'off'}")
+    print(f"WRITE_SECURE_SETTINGS: {'granted' if state['secure_settings'] else 'missing'}")
+    print(f"Usage access: {'allowed' if state['usage_access'] else 'missing'}")
+    return 0
+
+
 def main(
     argv: list[str] | None = None,
     adb_factory: Callable = RealAdb,
@@ -148,6 +213,19 @@ def main(
                 print("no backups found in backups/")
             return 0
 
+        if args.command == "home" and args.home_command == "install" and not args.apk.is_file():
+            print(BUILD_HINT, file=sys.stderr)
+            return 1
+        if args.command == "home" and args.home_command == "apps":
+            if not args.file.is_file():
+                print(f"apps.json not found: {args.file}", file=sys.stderr)
+                return 1
+            try:
+                validate_apps(args.file.read_text())
+            except ValueError as err:
+                print(f"apps.json invalid: {err}", file=sys.stderr)
+                return 1
+
         adb = adb_factory(device, default_adb_path())
         adb.connect()
 
@@ -158,7 +236,8 @@ def main(
 
         entries = load_catalog(catalog_path())
 
-        if args.command in CHANGING_COMMANDS:
+        home_changes = args.command == "home" and args.home_command != "status"
+        if args.command in CHANGING_COMMANDS or home_changes:
             problem = _wrong_device(adb)
             if problem:
                 print(problem, file=sys.stderr)
@@ -175,6 +254,9 @@ def main(
             print(format_status(report))
             return 0
 
+        if args.command == "home":
+            return _home(args, adb, input_fn)
+
         if args.command == "feature":
             outcomes = set_feature(adb, entries, args.name, args.state == "on", root)
             _print_outcomes(outcomes)
@@ -186,6 +268,8 @@ def main(
                     file=sys.stderr,
                 )
                 return 1
+            if args.name == "airplay" and args.state == "on":
+                _offer_airplay_restart(adb, input_fn)
             return 0
 
         if args.command == "restore":

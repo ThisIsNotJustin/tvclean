@@ -207,3 +207,16 @@ def test_connect_ignores_failure():
     adb = RealAdb("1.2.3.4:5555", "adb", run=run, sleep=lambda s: None)
     adb.connect()
     assert run.connect_calls == 1
+
+
+def test_push_runs_adb_push_for_the_device():
+    seen = []
+
+    def run(args, timeout):
+        seen.append(args)
+        return _sp.CompletedProcess(args, 0, "", "")
+
+    RealAdb("1.2.3.4:5555", "adb", run=run, sleep=lambda s: None).push(
+        Path("/tmp/apps.json"), "/sdcard/x/apps.json"
+    )
+    assert seen == [["adb", "-s", "1.2.3.4:5555", "push", "/tmp/apps.json", "/sdcard/x/apps.json"]]

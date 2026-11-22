@@ -51,6 +51,39 @@ Pressing Ctrl-C stops the run. It prints the backup name, and `tvclean restore` 
 - `updates off` on this TV only blocks Amazon's forced-update helper (`com.amazon.tv.forcedotaupdater.v2`). The main update services are protected by Fire OS and can't be disabled, so updates may still arrive. Run `tvclean status` after any update.
 - `alexa off` turns off Alexa's media and notification services. But Fire OS keeps the core voice service running.
 
+## Home screen
+
+The Home screen app (`home/`, package `dev.tvclean.home`) is what the Home button shows instead of Amazon's home screen. It has a navigation bar (Search, Home, Movies, TV Shows, Live, Sports, News), a clock, a "Continue on <App>" carousel over the three most recently used apps, and a row of installed apps in a fixed order with an Inputs tile. The ☰ menu holds Settings, Inputs, Amazon Home, the Alexa voice switch, the AirPlay and updates status, and About (which shows the redirect state). Apps that aren't installed are hidden. It is built on the Mac and installed over adb.
+
+Build it first (needs the Gradle wrapper and JDK 17):
+
+```
+cd home && ./gradlew assembleRelease
+```
+
+Then, from the repo:
+
+```
+tvclean home install              # install the APK, grant the permissions it needs, turn the redirect on
+tvclean home status               # installed, version, permissions, redirect state
+tvclean home on                   # turn the redirect on again (run this after a reboot if the redirect did not come back)
+tvclean home off                  # turn the redirect off and keep it off (survives reboots and opening the app); the Amazon home screen comes back
+tvclean home apps apps.json       # check an app order file and push it to the TV
+```
+
+`tvclean home apps` checks the file against the app's rules before anything is sent. The app order file is
+`{"version": 1, "apps": [{"label": "Netflix", "packages": ["com.netflix.ninja"], "color": "#E50914"}]}`. The bundled default is `home/app/src/main/assets/apps.json`.
+
+`tvclean home off` is remembered by the app, so a reboot or opening the Home app does not turn the redirect back on. `tvclean home on` (or `home install`) undoes it.
+
+To reach Amazon's own Home from the menu, use the menu's Amazon Home entry. It pauses the redirect for 30 seconds.
+
+**After a reboot**, the redirect may be off until the boot check turns it back on (unless you ran `tvclean home off`). If `tvclean home status` shows `Home redirect: OFF`, run `tvclean home on`.
+
+The AirPlay and Amazon updates switches are on the Mac, not the TV: use `tvclean feature airplay on|off` and `tvclean feature updates on|off`. Turning AirPlay on needs a restart before it works.
+
+`tvclean status` shows `Home redirect: on` or `Home redirect: OFF (run: tvclean home on)` when the app is installed.
+
 ## Undo
 
 `tvclean restore` with no name restores to your first backup, which is the TV as it was before tvclean. Pass a backup NAME to roll back to that point instead.

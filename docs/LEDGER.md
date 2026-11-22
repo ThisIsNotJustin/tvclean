@@ -63,3 +63,27 @@ A running log of decisions and progress, newest last. Each entry is dated. Decis
 **Decisions**
 - Phase 2b proceeds with the accessibility-service redirect, plus `tvclean home on|off` from the Mac after reboots (build call; the redirect met the owner's flash tolerance)
 - The resume panel is app-level. The Inputs tile opens Amazon's Inputs page. Alexa/AirPlay/updates switches stay Mac-only (build calls forced by platform limits)
+
+## 2026-11-22 (Phase 2b home screen)
+
+**Decisions** (owner decisions are marked; the rest were build calls)
+- AirPlay is **off by default** after the live test (owner). Turning it off stops it at once; turning it back on needs a restart. Apps can't enable or disable packages, so AirPlay stays a Mac command
+- Build autonomously overnight, one branch and pull request (owner)
+- Link sessions: every Amazon page lands on Amazon's Home, so the redirect ignores Home for 2.5 s after the app opens a page, restarted when the tab link is actually sent. Amazon's tab links only work when Amazon's Home is on screen, so the app opens Amazon's Home first and sends the tab link ~0.8 s later
+- Focus watching: during a link session the redirect watches which nav tab has focus (a bounded walk of the accessibility tree, since the plain focus lookup returns no id) and returns when Amazon's Home tab gets focus. Pressing Home inside an Amazon tab fires no window event. After Home on the Inputs page Amazon is silent for ~10 s, so the redirect also checks once a second for up to 2 minutes of a session
+- Banner artwork: each installed app's own TV banner. YouTube TV, HBO Max and Apple TV aren't installed on this TV, so they're hidden until installed
+- The hero shows "CONTINUE ON <APP>" with one "▶ Resume" button ("▶ Open" when there is nothing to resume)
+- Compile for speed instead of a baseline profile: `cmd package compile -m speed` runs at install, since Fire OS can't generate profiles without root
+- The menu panel is opaque. The carousel pauses on focus and while the menu is open
+
+**Live findings**
+- Cold start median 634 ms (528–657, 5 runs). PSS 75 MB. Janky frames 0.00% scrolling the app row (371 frames) and during hero rotation (140 frames)
+- Redirect from Netflix: 15/15 presses. All six nav tabs open the right Amazon tab with no bounce, and Home returns to tvclean Home from each. Settings returns to Home. Inputs returns to Home in ~1.7 s
+- Amazon Home escape: Home stays on Amazon for 30 s, then the redirect resumes
+- AirPlay on uses ~224 MB. Turning it off freed ~112 MB of available memory
+- The accessibility service can't capture remote key events on Fire OS
+- Alexa voice is ON on this TV (`voice_disabled=0`). The menu's switch or the Mac can turn it off
+
+**Progress**
+- Phase 2b built on `phase2b-home-screen`: the home app, the `tvclean home` commands, the status line, and the AirPlay restart offer
+- Next: owner checks with a real remote and a reboot (see the Phase 2b checklist in [ROADMAP.md](ROADMAP.md))
