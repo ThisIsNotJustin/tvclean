@@ -15,6 +15,7 @@ APPS_REMOTE = f"{APPS_DIR}/apps.json"
 WRITE_SECURE = "android.permission.WRITE_SECURE_SETTINGS"
 ACCESSIBILITY_KEY = "enabled_accessibility_services"
 ENABLED_KEY = "accessibility_enabled"
+INTENT_KEY = "tvclean_home_redirect"  # "0" = the owner turned the redirect off; the app then leaves it off
 COLOR_PATTERN = re.compile(r"#[0-9A-Fa-f]{6}")
 
 
@@ -53,7 +54,14 @@ def _apply(adb: Adb, services: list[str], enabled: bool, action: str) -> None:
         raise AdbError(f"Could not turn the Home redirect {action}: the TV did not accept the setting.")
 
 
+def _write_intent(adb: Adb, value: str) -> None:
+    adb.shell(f"settings put secure {INTENT_KEY} {value}")
+    if adb.shell(f"settings get secure {INTENT_KEY}").strip() != value:
+        raise AdbError("Could not record the Home redirect choice: the TV did not accept the setting.")
+
+
 def home_on(adb: Adb) -> None:
+    _write_intent(adb, "1")
     services = _services(adb)
     if SERVICE not in services:
         services.append(SERVICE)
@@ -61,6 +69,7 @@ def home_on(adb: Adb) -> None:
 
 
 def home_off(adb: Adb) -> None:
+    _write_intent(adb, "0")
     services = [s for s in _services(adb) if s != SERVICE]
     _apply(adb, services, enabled=bool(services), action="off")
 

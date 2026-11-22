@@ -238,3 +238,39 @@ def test_install_compile_failure_only_warns(tmp_path):
     assert any(line.startswith("Warning: compile for speed failed") for line in lines)
     assert lines[-1] == "Redirect on"
     assert f.settings[ENABLED] == "1"
+
+
+INTENT = "secure/tvclean_home_redirect"
+
+
+def test_home_off_records_owner_intent_before_removing_service():
+    f = home_device(services=SERVICE, enabled="1")
+    home_off(f)
+    assert f.settings[INTENT] == "0"
+    intent_at = f.calls.index("settings put secure tvclean_home_redirect 0")
+    service_at = next(i for i, c in enumerate(f.calls) if c.startswith("settings put secure enabled_accessibility_services"))
+    assert intent_at < service_at
+
+
+def test_home_on_records_owner_intent():
+    f = home_device(services=None, enabled=None)
+    f.settings[INTENT] = "0"
+    home_on(f)
+    assert f.settings[INTENT] == "1"
+
+
+def test_install_leaves_intent_on(tmp_path):
+    apk = tmp_path / "dev.tvclean.home.apk"
+    apk.write_bytes(b"apk")
+    f = home_device(installed=False)
+    f.settings[INTENT] = "0"
+    home_install(f, apk)
+    assert f.settings[INTENT] == "1"
+
+
+def test_home_off_raises_when_intent_write_ignored():
+    f = home_device(services=SERVICE, enabled="1")
+    f.ignore_settings_writes = {INTENT}
+    with pytest.raises(AdbError):
+        home_off(f)
+    assert SERVICE in f.settings[ACCESSIBILITY]
