@@ -127,6 +127,7 @@ def validate_apps(text: str) -> None:
         _fail("missing apps array")
     if not apps:
         _fail("empty apps array")
+    seen: set[str] = set()
     for app in apps:
         if not isinstance(app, dict):
             _fail("invalid catalog JSON: entry is not an object")
@@ -141,6 +142,9 @@ def validate_apps(text: str) -> None:
         for package in packages:
             if not isinstance(package, str) or not package.strip():
                 _fail("blank package name")
+            if package in seen:
+                _fail(f"package {package} is listed more than once")
+            seen.add(package)
         color = app.get("color")
         if not isinstance(color, str) or not COLOR_PATTERN.fullmatch(color):
             _fail(f"bad color for {label}")

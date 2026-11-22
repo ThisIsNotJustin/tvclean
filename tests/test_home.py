@@ -149,6 +149,7 @@ def test_home_state_redirect_needs_both_list_and_enabled_flag():
     ('{"version": 1, "apps": [{"label": "A", "packages": ["a.b"], "color": "#00000G"}]}', "bad color for A"),
     ('{"version": 1, "apps": [{"label": "A", "packages": ["a.b"]}]}', "bad color for A"),
     ('{"version": 1, "apps": [3]}', "invalid catalog JSON"),
+    ('{"version": 1, "apps": [{"label": "A", "packages": ["a.b", "c.d"], "color": "#000000"}, {"label": "B", "packages": ["c.d"], "color": "#000000"}]}', "package c.d is listed more than once"),
 ])
 def test_validate_apps_rejects(text, reason):
     with pytest.raises(ValueError) as info:

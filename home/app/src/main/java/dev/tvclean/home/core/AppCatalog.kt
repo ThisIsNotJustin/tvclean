@@ -28,7 +28,12 @@ object AppCatalog {
             val apps = root.optJSONArray("apps")
                 ?: throw CatalogException("missing apps array")
             if (apps.length() == 0) throw CatalogException("empty apps array")
-            return (0 until apps.length()).map { parseEntry(apps.getJSONObject(it)) }
+            val entries = (0 until apps.length()).map { parseEntry(apps.getJSONObject(it)) }
+            val seen = HashSet<String>()
+            for (pkg in entries.flatMap { it.packages }) {
+                if (!seen.add(pkg)) throw CatalogException("package $pkg is listed more than once")
+            }
+            return entries
         } catch (e: JSONException) {
             throw CatalogException("invalid catalog JSON: ${e.message}")
         }
@@ -48,7 +53,7 @@ object AppCatalog {
     fun resolve(entries: List<AppEntry>, isLaunchable: (String) -> Boolean): List<ResolvedApp> =
         entries.mapNotNull { entry ->
             entry.packages.firstOrNull(isLaunchable)?.let { ResolvedApp(entry.label, it, entry.color) }
-        }
+        }.distinctBy { it.packageName }
 
     private fun parseEntry(obj: JSONObject): AppEntry {
         val label = obj.opt("label") as? String

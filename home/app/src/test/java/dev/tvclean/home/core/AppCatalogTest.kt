@@ -107,4 +107,29 @@ class AppCatalogTest {
             AppCatalog.resolve(apps) { it in launchable }.single().packageName,
         )
     }
+
+    @Test
+    fun rejectsPackageListedTwice() {
+        val e = assertThrows(CatalogException::class.java) {
+            AppCatalog.parse(
+                appsJson(
+                    entry(label = "A", packages = "\"com.x\", \"com.y\""),
+                    entry(label = "B", packages = "\"com.y\""),
+                ),
+            )
+        }
+        assertEquals("package com.y is listed more than once", e.message)
+    }
+
+    @Test
+    fun resolveDropsDuplicatePackages() {
+        val apps = listOf(
+            AppEntry("A", listOf("com.x"), 0xFF000001),
+            AppEntry("B", listOf("com.q", "com.x"), 0xFF000002),
+        )
+        assertEquals(
+            listOf(ResolvedApp("A", "com.x", 0xFF000001)),
+            AppCatalog.resolve(apps) { it == "com.x" },
+        )
+    }
 }
