@@ -132,3 +132,87 @@ def test_cli_help_lists_all_subcommands(capsys):
     out = capsys.readouterr().out
     for command in ("backup", "debloat", "restore", "status", "feature", "backups"):
         assert command in out
+
+
+def test_cli_restore_failed_outcome_exits_1(tmp_path, capsys):
+    f = device()
+    assert run_cli(["backup"], f, tmp_path, capsys)[0] == 0
+    # The TV has since disabled com.alexa, and Fire OS refuses to enable it again.
+    f.packages["com.alexa"]["enabled"] = False
+    f.refuse_enable = {"com.alexa"}
+
+    code, out, err = run_cli(["restore"], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "failed" in out
+    assert "1 item(s) could not be restored" in err
+    assert 'If something goes wrong' in err
+
+
+def test_cli_feature_refused_exits_1(tmp_path, capsys):
+    f = device()
+    f.refuse_disable = {"com.airplay"}
+
+    code, out, err = run_cli(["feature", "airplay", "off"], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "refused" in out
+    assert "1 item(s) could not be switched off" in err
+
+
+def test_cli_backup_unreachable_shows_friendly_message(tmp_path, capsys):
+    f = device()
+    f.offline = True
+
+    code, out, err = run_cli(["--device", "192.168.1.9:5555", "backup"], f, tmp_path, capsys)
+
+    assert code == 1
+    assert "TV not reachable at 192.168.1.9:5555. Is it on and is ADB debugging enabled?" in err
+    assert "shell" not in err and "device offline" not in err
+    assert list_backups(tmp_path) == []
+
+
+def test_cli_feature_unreachable_shows_friendly_message(tmp_path, capsys):
+    f = device()
+    f.offline = True
+
+    code, out, err = run_cli(["--device", "192.168.1.9:5555", "feature", "airplay", "off"],
+                             f, tmp_path, capsys)
+
+    assert code == 1
+    assert "TV not reachable at 192.168.1.9:5555. Is it on and is ADB debugging enabled?" in err
+    assert "device offline" not in err
+
+
+class LosesDeviceAfterBackup(FakeAdb):
+    """The TV drops off during the tweak step, after the backup has been written.
+
+    read_state reads the tracked settings (7 `settings get` calls) before the backup
+    is finished; the next read is the first tweak check, which comes after the backup.
+    """
+
+    SETTINGS_READS_BEFORE_TWEAKS = 7
+
+    def __init__(self, packages):
+        super().__init__(packages)
+        self.settings_reads = 0
+
+    def shell(self, cmd):
+        if cmd.startswith("settings get"):
+            self.settings_reads += 1
+            if self.settings_reads > self.SETTINGS_READS_BEFORE_TWEAKS:
+                self.offline = True
+        return super().shell(cmd)
+
+
+def test_cli_debloat_unreachable_after_backup_names_backup(tmp_path, capsys):
+    f = LosesDeviceAfterBackup({"com.safe": {"enabled": True, "path": "/system/app/s/s.apk"}})
+
+    code, out, err = run_cli(["--device", "192.168.1.9:5555", "debloat", "--yes"],
+                             f, tmp_path, capsys)
+
+    backups = list_backups(tmp_path)
+    assert code == 1
+    assert "TV not reachable at 192.168.1.9:5555" in err
+    assert len(backups) == 1
+    assert f"Your backup is {backups[0].name}; run 'tvclean restore' once the TV is back." in err

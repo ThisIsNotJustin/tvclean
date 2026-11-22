@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from tvclean.adb import AdbError, RealAdb
+from tvclean.adb import AdbError, DeviceUnreachable, RealAdb
 from tvclean.backup import create_backup, list_backups
 from tvclean.catalog import FEATURES, CatalogError, load_catalog
 from tvclean.config import REPO_ROOT, catalog_path, default_adb_path, default_device
@@ -71,6 +71,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_outcomes(outcomes) -> None:
+    for o in outcomes:
+        print(f"{o.status:16} {o.package} {o.detail}".rstrip())
+
+
+def _failed(outcomes) -> int:
+    return sum(1 for o in outcomes if o.status in ("failed", "refused"))
+
+
 def _summary(report: Report) -> list[str]:
     counts = Counter(o.status for o in report.outcomes)
     lines = ["Packages: " + (", ".join(f"{n} {s}" for s, n in sorted(counts.items())) or "none")]
@@ -90,6 +99,7 @@ def main(
     args = build_parser().parse_args(argv)
     root = DEFAULT_ROOT if root is None else root
     device = args.device or default_device()
+    backups_before: set[Path] = set()
 
     try:
         if args.command == "backups":
@@ -122,14 +132,28 @@ def main(
 
         if args.command == "feature":
             outcomes = set_feature(adb, entries, args.name, args.state == "on", root)
-            for o in outcomes:
-                print(f"{o.status:16} {o.package} {o.detail}".rstrip())
+            _print_outcomes(outcomes)
+            failed = _failed(outcomes)
+            if failed:
+                print(
+                    f"{failed} item(s) could not be switched {args.state}. "
+                    "Run the command again, or 'tvclean restore' to go back to stock.",
+                    file=sys.stderr,
+                )
+                return 1
             return 0
 
         if args.command == "restore":
             outcomes = run_restore(adb, root, args.name)
-            for o in outcomes:
-                print(f"{o.status:16} {o.package} {o.detail}".rstrip())
+            _print_outcomes(outcomes)
+            failed = _failed(outcomes)
+            if failed:
+                print(
+                    f"{failed} item(s) could not be restored. Run 'tvclean restore' again, "
+                    'or see "If something goes wrong" in the README.',
+                    file=sys.stderr,
+                )
+                return 1
             return 0
 
         # debloat
@@ -138,6 +162,7 @@ def main(
         else:
             confirm = lambda prompt: _ask(input_fn, prompt)  # noqa: E731
         features_off = set(FEATURES) - args.keep
+        backups_before = set(list_backups(root))
         report = run_debloat(
             adb,
             entries,
@@ -154,6 +179,18 @@ def main(
             print(line)
         return 0
 
+    except DeviceUnreachable:
+        print(
+            f"TV not reachable at {device}. Is it on and is ADB debugging enabled?",
+            file=sys.stderr,
+        )
+        made = [b for b in list_backups(root) if b not in backups_before]
+        if args.command == "debloat" and made:
+            print(
+                f"Your backup is {made[0].name}; run 'tvclean restore' once the TV is back.",
+                file=sys.stderr,
+            )
+        return 1
     except NoBackups as err:
         print(str(err), file=sys.stderr)
         return 1

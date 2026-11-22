@@ -53,7 +53,11 @@ Amazon updates can turn disabled apps back on. Run this routine after an update:
 
 `status` warns when updates are off, and lists any packages that came back since the last run.
 
-## Last resort: factory reset
+## If something goes wrong
+
+If a command says some items could not be restored or switched, run it again. Each run only changes what is still wrong, so a second run is safe.
+
+If the TV drops off during a run, the message gives the backup name. Once the TV is back on the network, run `tvclean restore` to return it to stock.
 
 If the TV is in a bad state and restore doesn't fix it, reset it: Settings → My Fire TV → Reset to Factory Defaults. This erases everything, so set the TV up again afterwards.
 
