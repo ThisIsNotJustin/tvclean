@@ -47,9 +47,13 @@ def test_tweaks_pin_the_confirmed_keys():
     assert set(TWEAKS) == {
         "global:window_animation_scale",
         "global:transition_animation_scale",
-        "global:animator_duration_scale",
         "secure:limit_ad_tracking",
         "secure:amz_limit_ad_tracking",
         "secure:non_amz_limit_ad_tracking",
         "secure:USAGE_METRICS_UPLOAD_ENABLED",
     }
+
+
+def test_tweaks_exclude_animator_duration_scale():
+    assert "global:animator_duration_scale" not in TWEAKS
+    assert "global:animator_duration_scale" in TRACKED_SETTINGS

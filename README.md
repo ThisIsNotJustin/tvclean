@@ -32,6 +32,8 @@ tvclean restore 20261121-101500   # roll back to a specific backup
 
 Each run that changes the TV takes a backup first, in `backups/`.
 
+tvclean leaves the animator duration scale alone: on this TV, changing it breaks Settings and Inputs in the Home menu.
+
 Debloat starts by showing its plan, for example `120 packages in 12 batches → 12 reboots (about 60 minutes)`, and asks `Start? [y/N]`. `--yes` skips that question and the per-batch ones. The run first reboots the TV once so the baseline is measured on a freshly started TV. Then each batch goes like this: disable the packages, reboot, wait 45 seconds, run the health checks (retried up to three times), and ask you to check the TV. The check covers the remote, the picture, Home and Settings, switching to an HDMI input and back, search from Home, and opening one app. Answer `y` if all of that works. If not, that batch is undone.
 
 After each reboot the TV may stop accepting adb until you turn ADB debugging off and on again. When that happens tvclean tells you what to do: on the TV, go to Settings → My Fire TV → Developer options and switch ADB debugging off, then on. Then press Enter in the terminal to carry on, or type `q` to stop. This also happens with `--yes`.

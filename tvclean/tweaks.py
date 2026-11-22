@@ -7,10 +7,10 @@ from tvclean.state import read_setting, setting_reads_back
 # "namespace:key" -> value. Keys were confirmed on the TV with `settings list` (read-only):
 #   limit_ad_tracking, amz_limit_ad_tracking, non_amz_limit_ad_tracking: 1 = ad tracking limited.
 #   USAGE_METRICS_UPLOAD_ENABLED: 0 = usage metrics not uploaded.
+# animator_duration_scale is excluded: 0.5 breaks Settings and Inputs in the Fire OS Home menu (verified on 8.1.8.5).
 TWEAKS: dict[str, str] = {
     "global:window_animation_scale": "0.5",
     "global:transition_animation_scale": "0.5",
-    "global:animator_duration_scale": "0.5",
     "secure:limit_ad_tracking": "1",
     "secure:amz_limit_ad_tracking": "1",
     "secure:non_amz_limit_ad_tracking": "1",
