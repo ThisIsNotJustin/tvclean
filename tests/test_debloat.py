@@ -277,3 +277,12 @@ def test_debloat_applies_tweaks_before_first_batch(tmp_path):
     first_tweak = f.calls.index("settings put global window_animation_scale 0.5")
     first_disable = next(i for i, c in enumerate(f.calls) if c.startswith("pm disable-user"))
     assert first_tweak < first_disable
+
+
+def test_debloat_no_tweaks_skips_settings(tmp_path):
+    f = device()
+
+    run(f, [], tmp_path, lambda _: True, tweaks=False)
+
+    assert not any(call.startswith("settings put") for call in f.calls)
+    assert f.settings == {}

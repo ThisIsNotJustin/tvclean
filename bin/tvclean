@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Run tvclean from the repo: bin/tvclean <command> [options]
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [ -x .venv/bin/python ]; then
+  exec .venv/bin/python -m tvclean "$@"
+fi
+exec python3 -m tvclean "$@"

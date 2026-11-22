@@ -85,13 +85,14 @@ def run_debloat(
     root: Path,
     confirm: Callable[[str], bool],
     batch_size: int = 10,
+    tweaks: bool = True,
     now: Callable[[], datetime] = datetime.now,
     measure: Callable[[Adb], dict] = collect_metrics,
     log: Callable[[str], None] = print,
 ) -> Report:
     metrics_before = measure(adb)
     backup = create_backup(adb, root, now(), metrics=metrics_before)
-    changed, failed_tweaks = apply_tweaks(adb)
+    changed, failed_tweaks = apply_tweaks(adb) if tweaks else ({}, [])
     for key, (old, new_value) in changed.items():
         log(f"Tweak {key}: {old} -> {new_value}")
     for key in failed_tweaks:
