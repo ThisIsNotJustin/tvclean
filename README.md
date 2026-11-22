@@ -42,6 +42,13 @@ Pressing Ctrl-C stops the run. It prints the backup name, and `tvclean restore` 
 
 `debloat`, `feature` and `restore` first check that the connected device is the TV this tool was built for (`ro.product.device` is `ginza`). If it isn't, they stop with `Connected device is <x>, not this TV (ginza). Check --device.` and change nothing.
 
+## Feature toggles
+
+`tvclean feature <name> on|off` switches a group of packages. Each run takes a backup first.
+
+- `updates off` on this TV only blocks Amazon's forced-update helper (`com.amazon.tv.forcedotaupdater.v2`). The main update services are protected by Fire OS and can't be disabled, so updates may still arrive. Run `tvclean status` after any update.
+- `alexa off` turns off Alexa's media and notification services. But Fire OS keeps the core voice service running.
+
 ## Undo
 
 `tvclean restore` with no name restores to your first backup, which is the TV as it was before tvclean. Pass a backup NAME to roll back to that point instead.

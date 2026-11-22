@@ -28,9 +28,28 @@ def test_required_entries():
     # The brief names com.amazon.airplaydaemon, but that is a process name, not an
     # installed package (pm lists com.apple.airplay.amazon.airplay). See report.
     assert by["com.apple.airplay.amazon.airplay"].feature == "airplay"
-    assert by["com.amazon.vizzini"].feature == "alexa"
-    for p in ("com.amazon.device.software.ota", "com.amazon.device.software.ota.override", "com.amazon.tv.forcedotaupdater.v2"):
-        assert by[p].feature == "updates"
+    assert by["com.amazon.alexamediaplayer.runtime.ftv"].feature == "alexa"
+    updates = [e.package for e in load_catalog(CATALOG) if e.feature == "updates"]
+    assert updates == ["com.amazon.tv.forcedotaupdater.v2"]
+
+
+KNOWN_UNUSABLE = (
+    "com.amazon.ftvads.deeplinking",
+    "com.amazon.device.crashmanager",
+    "com.amazon.device.logmanager",
+    "com.amazon.device.metrics",
+    "com.amazon.device.messaging",
+    "com.amazon.tcomm",
+    "com.amazon.tv.csapp",
+    "com.amazon.device.software.ota",
+    "com.amazon.device.software.ota.override",
+    "com.amazon.vizzini",
+)
+
+
+def test_known_unusable_packages_excluded():
+    names = {e.package for e in load_catalog(CATALOG)}
+    assert names.isdisjoint(KNOWN_UNUSABLE)
 
 
 def test_every_entry_has_a_real_reason():
