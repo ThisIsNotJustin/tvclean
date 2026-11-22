@@ -91,8 +91,11 @@ def run_debloat(
 ) -> Report:
     metrics_before = measure(adb)
     backup = create_backup(adb, root, now(), metrics=metrics_before)
-    for key, (old, new_value) in apply_tweaks(adb).items():
+    changed, failed_tweaks = apply_tweaks(adb)
+    for key, (old, new_value) in changed.items():
         log(f"Tweak {key}: {old} -> {new_value}")
+    for key in failed_tweaks:
+        log(f"Tweak {key} did not read back as set; left as is")
     state = read_state(adb)
 
     outcomes: list[Outcome] = []

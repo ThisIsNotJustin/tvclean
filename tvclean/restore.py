@@ -1,12 +1,11 @@
 """Restore the TV to a backup: re-enable, reinstall and reset tracked settings."""
-from datetime import datetime
 from pathlib import Path
 
 from tvclean.adb import Adb
 from tvclean.apply import Outcome, undo_entry
-from tvclean.backup import list_backups, latest_backup
+from tvclean.backup import list_backups
 from tvclean.debloat import read_applied, write_applied
-from tvclean.state import TRACKED_SETTINGS, DeviceState, load_state, read_state
+from tvclean.state import TRACKED_SETTINGS, DeviceState, load_state, read_state, setting_reads_back
 
 UNDONE_STATUSES = ("done", "skipped-already")
 
@@ -29,15 +28,18 @@ def _restore_setting(adb: Adb, key: str, current: str, target: str) -> Outcome:
         adb.shell(f"settings delete {namespace} {name}")
     else:
         adb.shell(f"settings put {namespace} {name} {target}")
+    if not setting_reads_back(adb, key, target):
+        return Outcome(key, "failed", f"{current} -> {target} did not read back")
     return Outcome(key, "done", f"{current} -> {target}")
 
 
 def run_restore(adb: Adb, root: Path, name: str | None = None) -> list[Outcome]:
+    """Restore to backup `name`, or to the oldest backup (the pre-tvclean snapshot) when no name is given."""
     backups = list_backups(root)
     if not backups:
         raise NoBackups("no backups found in backups/")
     if name is None:
-        target_dir = latest_backup(root)
+        target_dir = backups[0]
     else:
         target_dir = root / name
         if not target_dir.is_dir():
@@ -55,7 +57,8 @@ def run_restore(adb: Adb, root: Path, name: str | None = None) -> list[Outcome]:
         apk_dir = find_apk_dir(root, package, target_dir)
         outcomes.append(undo_entry(adb, package, apk_dir))
 
-    package_outcomes = list(outcomes)
+    restored = {o.package for o in outcomes if o.status in UNDONE_STATUSES}
+
     for key in TRACKED_SETTINGS:
         wanted = target.settings.get(key)
         if wanted is None:
@@ -64,8 +67,10 @@ def run_restore(adb: Adb, root: Path, name: str | None = None) -> list[Outcome]:
         if current != wanted:
             outcomes.append(_restore_setting(adb, key, current, wanted))
 
-    restored = {o.package for o in package_outcomes if o.status in UNDONE_STATUSES}
     applied = read_applied(root) or {"tier": None, "features_off": [], "packages": []}
     applied["packages"] = sorted(set(applied["packages"]) - restored)
+    if not applied["packages"]:
+        applied["features_off"] = []
+        applied["tier"] = None
     write_applied(root, applied)
     return outcomes

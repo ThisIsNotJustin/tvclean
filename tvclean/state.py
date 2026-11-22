@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tvclean.adb import Adb, AdbError
+from tvclean.adb import Adb, AdbError, DeviceUnreachable
 
 TRACKED_SETTINGS: tuple[str, ...] = (
     "global:window_animation_scale",
@@ -13,8 +13,6 @@ TRACKED_SETTINGS: tuple[str, ...] = (
     "secure:amz_limit_ad_tracking",
     "secure:non_amz_limit_ad_tracking",
     "secure:USAGE_METRICS_UPLOAD_ENABLED",
-    "secure:pact_usage_collection_enabled",
-    "secure:usage_metrics_marketing_enabled",
 )
 
 
@@ -64,12 +62,22 @@ def list_disabled(adb: Adb) -> frozenset[str]:
     return _parse_packages(adb.shell("pm list packages -d"))
 
 
-def _read_setting(adb: Adb, key: str) -> str:
+def read_setting(adb: Adb, key: str) -> str:
     namespace, _, name = key.partition(":")
     value = adb.shell(f"settings get {namespace} {name}").strip()
     if "\n" in value or value.lower().startswith(("error", "exception")):
         raise AdbError(f"settings get failed for {key}: {value[:ERROR_SNIPPET_CHARS]}")
     return value
+
+
+def setting_reads_back(adb: Adb, key: str, expected: str) -> bool:
+    """True when the device reports `expected` for `key`. An unreadable value counts as a mismatch."""
+    try:
+        return read_setting(adb, key) == expected
+    except DeviceUnreachable:
+        raise
+    except AdbError:
+        return False
 
 
 def read_state(adb: Adb) -> DeviceState:
@@ -82,7 +90,7 @@ def read_state(adb: Adb) -> DeviceState:
         )
     disabled = list_disabled(adb)
     paths = _parse_paths(adb.shell("pm list packages -f"))
-    settings = {key: _read_setting(adb, key) for key in TRACKED_SETTINGS}
+    settings = {key: read_setting(adb, key) for key in TRACKED_SETTINGS}
     return DeviceState(
         installed=installed,
         disabled=disabled,

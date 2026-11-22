@@ -67,3 +67,16 @@ def test_feature_unknown_raises(tmp_path):
         set_feature(f, ENTRIES, "bogus", on=False, root=tmp_path, now=lambda: NOW)
     assert f.calls == []
     assert list_backups(tmp_path) == []
+
+
+def test_feature_on_keeps_name_when_undo_fails(tmp_path):
+    f = device()
+    set_feature(f, ENTRIES, "alexa", on=False, root=tmp_path, now=lambda: NOW)
+    f.refuse_enable.add("com.amazon.alexa.app")
+
+    outcomes = set_feature(f, ENTRIES, "alexa", on=True, root=tmp_path)
+
+    assert [o.status for o in outcomes] == ["failed"]
+    applied = read_applied(tmp_path)
+    assert applied["features_off"] == ["alexa"]
+    assert applied["packages"] == ["com.amazon.alexa.app"]

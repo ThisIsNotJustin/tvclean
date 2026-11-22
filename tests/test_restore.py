@@ -85,3 +85,60 @@ def test_restore_updates_applied_json(tmp_path):
     run_restore(f, tmp_path)
 
     assert read_applied(tmp_path) == {"tier": "safe", "features_off": [], "packages": ["com.keep"]}
+
+
+def test_restore_continues_after_one_failed_undo(tmp_path):
+    f = FakeAdb({
+        "com.a": {"enabled": True, "path": "/system/app/a/a.apk"},
+        "com.c": {"enabled": True, "path": "/system/app/c/c.apk"},
+    })
+    backup = create_backup(f, tmp_path, datetime(2026, 11, 21, 9, 0, 0))
+    apply_entry(f, entry("com.a", "disable"), read_state(f), backup)
+    apply_entry(f, entry("com.c", "disable"), read_state(f), backup)
+    write_applied(tmp_path, {"tier": "safe", "features_off": [], "packages": ["com.a", "com.c"]})
+    f.refuse_enable.add("com.a")
+
+    outcomes = run_restore(f, tmp_path)
+
+    status = {o.package: o.status for o in outcomes}
+    assert status["com.a"] == "failed"
+    assert status["com.c"] == "done"
+    assert f.packages["com.c"]["enabled"]
+    assert read_applied(tmp_path)["packages"] == ["com.a"]
+
+
+def test_restore_setting_write_ignored_reports_failed(tmp_path):
+    f = device(**{"global/window_animation_scale": "1.0"})
+    create_backup(f, tmp_path, datetime(2026, 11, 21, 9, 0, 0))
+    f.settings["global/window_animation_scale"] = "0.5"
+    f.ignore_settings_writes.add("global/window_animation_scale")
+
+    outcomes = run_restore(f, tmp_path)
+
+    status = {o.package: o.status for o in outcomes}
+    assert status["global:window_animation_scale"] == "failed"
+    assert f.settings["global/window_animation_scale"] == "0.5"
+
+
+def test_restore_default_targets_oldest_backup(tmp_path):
+    f = device(**{"global/window_animation_scale": "1.0"})
+    first = read_state(f)
+    b1 = create_backup(f, tmp_path, datetime(2026, 11, 21, 9, 0, 0))
+    apply_entry(f, entry("com.a", "disable"), read_state(f), b1)
+    f.settings["global/window_animation_scale"] = "0.5"
+    create_backup(f, tmp_path, datetime(2026, 11, 21, 10, 0, 0))
+
+    run_restore(f, tmp_path)
+
+    assert read_state(f) == first
+
+
+def test_restore_to_stock_clears_features_off(tmp_path):
+    f = device()
+    b1 = create_backup(f, tmp_path, datetime(2026, 11, 21, 9, 0, 0))
+    apply_entry(f, entry("com.a", "disable"), read_state(f), b1)
+    write_applied(tmp_path, {"tier": "safe", "features_off": ["alexa"], "packages": ["com.a"]})
+
+    run_restore(f, tmp_path)
+
+    assert read_applied(tmp_path) == {"tier": None, "features_off": [], "packages": []}

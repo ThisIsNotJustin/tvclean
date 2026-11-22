@@ -52,6 +52,7 @@ class FakeAdb(Adb):
         install_error: str | None = None,
         silent_install: bool = False,
         fail_after_changes: int | None = None,
+        ignore_settings_writes: set[str] = frozenset(),
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -67,6 +68,7 @@ class FakeAdb(Adb):
         self.install_error = install_error
         self.silent_install = silent_install
         self.fail_after_changes = fail_after_changes
+        self.ignore_settings_writes = set(ignore_settings_writes)
         self.changes = 0
         self.calls: list[str] = []
         self.pulled: list[str] = []
@@ -136,10 +138,14 @@ class FakeAdb(Adb):
             value = self.settings.get(f"{args[2]}/{args[3]}")
             return "null" if value is None else value
         if args[:1] == ["settings"] and args[1:2] == ["put"]:
-            self.settings[f"{args[2]}/{args[3]}"] = args[4]
+            key = f"{args[2]}/{args[3]}"
+            if key not in self.ignore_settings_writes:
+                self.settings[key] = args[4]
             return ""
         if args[:1] == ["settings"] and args[1:2] == ["delete"]:
-            self.settings.pop(f"{args[2]}/{args[3]}", None)
+            key = f"{args[2]}/{args[3]}"
+            if key not in self.ignore_settings_writes:
+                self.settings.pop(key, None)
             return ""
         if args == ["cat", "/proc/meminfo"]:
             return f"MemTotal:        1500000 kB\nMemAvailable:   {self.mem_available_kb} kB\n"

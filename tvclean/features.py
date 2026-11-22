@@ -44,7 +44,8 @@ def set_feature(
         ]
         restored = {o.package for o in outcomes if o.status in DONE_STATUSES}
         applied["packages"] = sorted(set(applied["packages"]) - restored)
-        applied["features_off"] = sorted(set(applied["features_off"]) - {name})
+        if all(o.status in DONE_STATUSES for o in outcomes):
+            applied["features_off"] = sorted(set(applied["features_off"]) - {name})
 
     write_applied(root, applied)
     return outcomes
