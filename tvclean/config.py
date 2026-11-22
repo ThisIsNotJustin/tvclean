@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 
 DEFAULT_DEVICE = "192.168.1.253:5555"
+# ro.product.device of the TV this tool was built for; changing commands refuse any other device.
+EXPECTED_DEVICE = "ginza"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

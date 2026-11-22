@@ -10,6 +10,8 @@ refuse_enable: packages whose `pm enable` Fire OS refuses (state unchanged)
 install_error: when set, `install` raises AdbError with this message (non-transport failure)
 silent_install: when True, `install` succeeds without listing the package afterwards
 split_packages: packages `pm path` reports as split APKs (two `package:` lines)
+device_name: what `getprop ro.product.device` reports (the TV is "ginza")
+connect(): a no-op, as adb connect is for the fake
 
 Only the commands the implemented tasks need are handled. Anything else raises
 AssertionError so a test cannot silently rely on unmodelled behaviour.
@@ -55,6 +57,7 @@ class FakeAdb(Adb):
         fail_after_changes: int | None = None,
         ignore_settings_writes: set[str] = frozenset(),
         split_packages: set[str] = frozenset(),
+        device_name: str = "ginza",
     ):
         self.packages = {
             name: {"enabled": spec["enabled"], "path": spec["path"], "installed": True}
@@ -72,6 +75,7 @@ class FakeAdb(Adb):
         self.fail_after_changes = fail_after_changes
         self.ignore_settings_writes = set(ignore_settings_writes)
         self.split_packages = set(split_packages)
+        self.device_name = device_name
         self.changes = 0
         self.calls: list[str] = []
         self.pulled: list[str] = []
@@ -114,6 +118,9 @@ class FakeAdb(Adb):
             "path": f"/data/app/{name}/base.apk",
             "installed": True,
         }
+
+    def connect(self) -> None:
+        self.calls.append("connect")
 
     def reboot(self) -> None:
         self.calls.append("reboot")
@@ -162,6 +169,8 @@ class FakeAdb(Adb):
             return ""
         if args == ["getprop", "sys.boot_completed"]:
             return "1\n"
+        if args == ["getprop", "ro.product.device"]:
+            return f"{self.device_name}\n"
         if args == ["dumpsys", "tv_input"]:
             return self._tv_input()
         if args == ["dumpsys", "connectivity"]:

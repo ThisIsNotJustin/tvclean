@@ -274,3 +274,36 @@ def test_cli_ctrl_c_prints_backup_and_exits_130(tmp_path, capsys):
     assert code == 130
     assert len(backups) == 1
     assert f"Stopped. Your backup is {backups[0].name}; run 'tvclean restore' to undo." in err
+
+
+@pytest.mark.parametrize("argv", [
+    ["feature", "airplay", "off"],
+    ["restore"],
+    ["debloat", "--yes"],
+])
+def test_cli_refuses_changing_command_on_wrong_tv(tmp_path, capsys, argv):
+    f = device()
+    f.device_name = "mido"
+
+    code, out, err = run_cli(argv, f, tmp_path, capsys)
+
+    assert code == 1
+    assert "Connected device is mido, not this TV (ginza). Check --device." in err
+    assert f.reboots == 0
+    assert f.packages["com.airplay"]["enabled"]
+
+
+def test_cli_connects_once_at_startup(tmp_path, capsys):
+    class Spy(FakeAdb):
+        connects = 0
+
+        def connect(self):
+            Spy.connects += 1
+
+    f = Spy(
+        {"com.safe": {"enabled": True, "path": "/system/app/s/s.apk"}},
+        raw_outputs={"getprop ro.build.version.name": "Fire OS 7.6.0.1\n"},
+    )
+    run_cli(["status"], f, tmp_path, capsys)
+
+    assert Spy.connects == 1

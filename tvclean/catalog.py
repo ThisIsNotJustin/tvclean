@@ -1,4 +1,5 @@
 """The curated package catalog: load, validate and select entries."""
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -6,6 +7,7 @@ import tomllib
 
 from tvclean.protected import is_protected
 
+NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*$")
 ACTIONS = ("disable", "uninstall")
 TIERS = ("safe", "moderate")
 FEATURES = ("alexa", "airplay", "updates")
@@ -28,6 +30,8 @@ def _entry(raw: dict) -> Entry:
     name = raw.get("name")
     if not isinstance(name, str) or not name:
         raise CatalogError(f"entry has no package name: {raw!r}")
+    if not NAME_PATTERN.match(name):
+        raise CatalogError(f"{name!r} is not a package name")
     if is_protected(name):
         raise CatalogError(f"{name} is on the protected list and must not be in the catalog")
     action = raw.get("action")

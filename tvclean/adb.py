@@ -56,6 +56,8 @@ class Adb(Protocol):
 
     def wait_ready(self, timeout_s: int = 240) -> None: ...
 
+    def connect(self) -> None: ...
+
 
 def _run(args: list[str], timeout: float = DEFAULT_TIMEOUT_S) -> subprocess.CompletedProcess:
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout)

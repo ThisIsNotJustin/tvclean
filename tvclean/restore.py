@@ -1,4 +1,5 @@
 """Restore the TV to a backup: re-enable, reinstall and reset tracked settings."""
+import shlex
 from pathlib import Path
 
 from tvclean.adb import Adb
@@ -33,9 +34,9 @@ def find_apk_dir(root: Path, package: str, fallback: Path) -> Path:
 def _restore_setting(adb: Adb, key: str, current: str, target: str) -> Outcome:
     namespace, _, name = key.partition(":")
     if target == "null":
-        adb.shell(f"settings delete {namespace} {name}")
+        adb.shell(f"settings delete {shlex.quote(namespace)} {shlex.quote(name)}")
     else:
-        adb.shell(f"settings put {namespace} {name} {target}")
+        adb.shell(f"settings put {shlex.quote(namespace)} {shlex.quote(name)} {shlex.quote(target)}")
     if not setting_reads_back(adb, key, target):
         return Outcome(key, "failed", f"{current} -> {target} did not read back")
     return Outcome(key, "done", f"{current} -> {target}")

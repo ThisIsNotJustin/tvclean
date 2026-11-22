@@ -200,3 +200,10 @@ def test_closed_transport_needs_error_prefix():
         run=_failing(stdout="Closed-captioning is disabled\n"), sleep=lambda s: None,
     )
     assert "Closed-captioning" in adb.shell("settings get secure captioning")
+
+
+def test_connect_ignores_failure():
+    run = FakeRun(connect_ok=False)
+    adb = RealAdb("1.2.3.4:5555", "adb", run=run, sleep=lambda s: None)
+    adb.connect()
+    assert run.connect_calls == 1

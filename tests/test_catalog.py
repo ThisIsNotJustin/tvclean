@@ -65,3 +65,10 @@ def test_select_moderate_includes_safe_and_features_off():
     es = load_catalog(DATA / "catalog_ok.toml")  # 1 safe, 1 moderate, 1 alexa, 1 airplay
     names = [e.package for e in select(es, "moderate", {"alexa"})]
     assert names == ["com.safe", "com.mod", "com.alexa"]
+
+
+@pytest.mark.parametrize("name", ["com.x; reboot", "com.x y", "com.x$(id)", "1com.x", "com.x-y"])
+def test_load_catalog_rejects_names_that_are_not_package_names(tmp_path, name):
+    body = ENTRY.replace("com.x.thing", name) + 'tier = "safe"\n'
+    with pytest.raises(CatalogError, match="not a package name"):
+        load_catalog(write(tmp_path, body))

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 import pytest
@@ -154,3 +155,16 @@ def test_restore_to_stock_drops_applied_packages_already_enabled(tmp_path):
     run_restore(f, tmp_path)
 
     assert read_applied(tmp_path) == {"tier": None, "features_off": [], "packages": []}
+
+
+def test_restore_quotes_setting_values_in_shell(tmp_path):
+    f = device()
+    b1 = create_backup(f, tmp_path, datetime(2026, 11, 21, 9, 0, 0))
+    state_path = b1 / "state.json"
+    state = json.loads(state_path.read_text())
+    state["settings"]["global:window_animation_scale"] = "a b"
+    state_path.write_text(json.dumps(state))
+
+    run_restore(f, tmp_path)
+
+    assert "settings put global window_animation_scale 'a b'" in f.calls

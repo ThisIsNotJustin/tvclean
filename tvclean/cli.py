@@ -9,7 +9,7 @@ from typing import Callable
 from tvclean.adb import AdbError, DeviceUnreachable, RealAdb
 from tvclean.backup import create_backup, list_backups
 from tvclean.catalog import FEATURES, CatalogError, load_catalog, select
-from tvclean.config import REPO_ROOT, catalog_path, default_adb_path, default_device
+from tvclean.config import EXPECTED_DEVICE, REPO_ROOT, catalog_path, default_adb_path, default_device
 from tvclean.debloat import Report, plan_line, run_debloat
 from tvclean.features import set_feature
 from tvclean.metrics import LAUNCH_TARGETS
@@ -18,6 +18,7 @@ from tvclean.status import build_status, format_status
 
 DEFAULT_ROOT = REPO_ROOT / "backups"
 TIERS = ("safe", "moderate")
+CHANGING_COMMANDS = ("feature", "restore", "debloat")
 RESTORE_HELP = (
     "With no NAME, restores to your first backup (the TV as it was before tvclean). "
     "Pass a backup NAME to roll back to that point instead."
@@ -31,6 +32,14 @@ def _ask(input_fn: Callable[[str], str], prompt: str) -> bool:
     except EOFError:
         return False
     return answer.strip().lower().startswith("y")
+
+
+def _wrong_device(adb) -> str | None:
+    """Refuse to change anything unless the connected device is the TV this tool was built for."""
+    actual = adb.shell("getprop ro.product.device").strip()
+    if actual == EXPECTED_DEVICE:
+        return None
+    return f"Connected device is {actual or 'unknown'}, not this TV ({EXPECTED_DEVICE}). Check --device."
 
 
 def _keep_list(text: str) -> set[str]:
@@ -129,6 +138,7 @@ def main(
             return 0
 
         adb = adb_factory(device, default_adb_path())
+        adb.connect()
 
         if args.command == "backup":
             backup = create_backup(adb, root, datetime.now())
@@ -136,6 +146,12 @@ def main(
             return 0
 
         entries = load_catalog(catalog_path())
+
+        if args.command in CHANGING_COMMANDS:
+            problem = _wrong_device(adb)
+            if problem:
+                print(problem, file=sys.stderr)
+                return 1
 
         if args.command == "status":
             report = build_status(adb, entries, root)

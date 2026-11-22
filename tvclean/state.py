@@ -1,4 +1,5 @@
 import json
+import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -64,7 +65,7 @@ def list_disabled(adb: Adb) -> frozenset[str]:
 
 def read_setting(adb: Adb, key: str) -> str:
     namespace, _, name = key.partition(":")
-    value = adb.shell(f"settings get {namespace} {name}").strip()
+    value = adb.shell(f"settings get {shlex.quote(namespace)} {shlex.quote(name)}").strip()
     if "\n" in value or value.lower().startswith(("error", "exception")):
         raise AdbError(f"settings get failed for {key}: {value[:ERROR_SNIPPET_CHARS]}")
     return value

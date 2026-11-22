@@ -1,4 +1,5 @@
 import re
+import shlex
 import time
 from typing import Callable
 
@@ -45,7 +46,7 @@ def launch_component(adb: Adb, pkg: str) -> str | None:
     for category in LAUNCHER_CATEGORIES:
         output = adb.shell(
             "cmd package resolve-activity --brief -a android.intent.action.MAIN "
-            f"-c {category} {pkg}"
+            f"-c {category} {shlex.quote(pkg)}"
         )
         component = resolved_component(output)
         if component is not None:
@@ -56,8 +57,8 @@ def launch_component(adb: Adb, pkg: str) -> str | None:
 def time_launch(adb: Adb, pkg: str, component: str) -> int | None:
     """Force-stop, cold-start `component`, return TotalTime in ms (None if not reported)."""
     try:
-        adb.shell(f"am force-stop {pkg}")
-        output = adb.shell(f"am start -W -n {component}", timeout=LAUNCH_TIMEOUT_S)
+        adb.shell(f"am force-stop {shlex.quote(pkg)}")
+        output = adb.shell(f"am start -W -n {shlex.quote(component)}", timeout=LAUNCH_TIMEOUT_S)
     finally:
         adb.shell("input keyevent KEYCODE_HOME")
     match = _TOTAL_TIME.search(output)

@@ -25,7 +25,7 @@ class Outcome:
 def _apply_disable(adb: Adb, package: str, state: DeviceState) -> Outcome:
     if package in state.disabled:
         return Outcome(package, "skipped-already")
-    output = adb.shell(f"pm disable-user --user 0 {package}")
+    output = adb.shell(f"pm disable-user --user 0 {shlex.quote(package)}")
     if REFUSAL_PATTERN.search(output) or package not in list_disabled(adb):
         return Outcome(package, "refused", output.strip())
     return Outcome(package, "done")
@@ -53,7 +53,7 @@ def _apply_uninstall(adb: Adb, package: str, state: DeviceState, backup_dir: Pat
         return Outcome(package, "failed", str(err))
     if not apk.is_file() or apk.stat().st_size == 0:
         return Outcome(package, "failed", "pulled APK missing or empty; not uninstalled")
-    output = adb.shell(f"pm uninstall --user 0 {package}")
+    output = adb.shell(f"pm uninstall --user 0 {shlex.quote(package)}")
     if "Success" not in output:
         return Outcome(package, "failed", output.strip())
     return Outcome(package, "done")
@@ -81,12 +81,12 @@ def undo_entry(adb: Adb, package: str, backup_dir: Path) -> Outcome:
             if package not in list_installed(adb):
                 return Outcome(package, "failed", f"pm list packages does not show {package} after install")
             return Outcome(package, "done")
-        output = adb.shell(f"cmd package install-existing {package}")
+        output = adb.shell(f"cmd package install-existing {shlex.quote(package)}")
         if package not in list_installed(adb):
             return Outcome(package, "failed", output.strip())
         return Outcome(package, "done")
     if package in list_disabled(adb):
-        output = adb.shell(f"pm enable {package}")
+        output = adb.shell(f"pm enable {shlex.quote(package)}")
         if package in list_disabled(adb):
             return Outcome(package, "failed", output.strip())
         return Outcome(package, "done")

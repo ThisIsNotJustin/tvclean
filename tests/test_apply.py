@@ -192,3 +192,10 @@ def test_apply_uninstall_fails_on_empty_pull(tmp_path, monkeypatch, pulled_bytes
     assert "missing or empty" in out.detail
     assert not any(c.startswith("pm uninstall") for c in f.calls)
     assert "com.x" in f.shell("pm list packages")
+
+
+def test_apply_quotes_package_name_in_shell(tmp_path):
+    name = "com.x;touch"
+    f = FakeAdb({name: {"enabled": True, "path": "/system/app/x/x.apk"}})
+    apply_entry(f, entry(name), read_state(f), tmp_path)
+    assert "pm disable-user --user 0 'com.x;touch'" in f.calls

@@ -1,4 +1,6 @@
 """Settings tweaks: animation scales and ad-tracking/usage toggles, applied before the first batch."""
+import shlex
+
 from tvclean.adb import Adb
 from tvclean.state import read_setting, setting_reads_back
 
@@ -29,7 +31,7 @@ def apply_tweaks(adb: Adb) -> tuple[dict[str, tuple[str, str]], list[str]]:
         if old == new:
             continue
         namespace, _, name = key.partition(":")
-        adb.shell(f"settings put {namespace} {name} {new}")
+        adb.shell(f"settings put {shlex.quote(namespace)} {shlex.quote(name)} {shlex.quote(new)}")
         if setting_reads_back(adb, key, new):
             changed[key] = (old, new)
         else:
