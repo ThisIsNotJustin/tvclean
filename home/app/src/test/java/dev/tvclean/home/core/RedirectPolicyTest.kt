@@ -90,4 +90,49 @@ class RedirectPolicyTest {
         policy.pauseFor(1_000)
         assertFalse(policy.pollActive())
     }
+
+    @Test fun inGraceReflectsWindow() {
+        assertFalse(policy.inGrace())
+        policy.startLinkSession()
+        t = 2_499
+        assertTrue(policy.inGrace())
+        t = 2_500
+        assertFalse(policy.inGrace())
+    }
+
+    @Test fun breakerPausesAfterThreeUnshownRedirects() {
+        policy.onRedirect()
+        t = 3_000
+        policy.onRedirect()
+        assertFalse(policy.isPaused())
+        t = 6_000
+        policy.onRedirect()
+        assertTrue(policy.isPaused())
+        assertFalse(policy.onAmazonHomeWindow())
+        t = 6_000 + 299_999
+        assertTrue(policy.isPaused())
+        t = 6_000 + 300_000
+        assertFalse(policy.isPaused())
+    }
+
+    @Test fun homeShownResetsBreaker() {
+        policy.onRedirect()
+        t = 1_000
+        policy.onRedirect()
+        policy.onHomeShown()
+        t = 2_000
+        policy.onRedirect()
+        assertFalse(policy.isPaused())
+    }
+
+    @Test fun redirectsSpreadOutDontTrip() {
+        policy.onRedirect()
+        t = 6_000
+        policy.onRedirect()
+        t = 12_000
+        policy.onRedirect()
+        t = 18_000
+        policy.onRedirect()
+        assertFalse(policy.isPaused())
+    }
 }

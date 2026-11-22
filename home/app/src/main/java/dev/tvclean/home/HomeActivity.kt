@@ -57,6 +57,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        Redirect.policy.onHomeShown()
         loadJob?.cancel()
         loadJob = lifecycleScope.launch {
             val apps = repo.loadApps()

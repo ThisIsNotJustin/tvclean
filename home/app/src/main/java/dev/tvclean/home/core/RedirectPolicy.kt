@@ -6,6 +6,24 @@ class RedirectPolicy(private val now: () -> Long) {
     private var inSession = false
     private var sessionStart = 0L
 
+    private val redirects = ArrayDeque<Long>()
+
+    /** A redirect to our Home was sent. Three within 10 s with no onHomeShown() means Home cannot come up: pause 5 min. */
+    fun onRedirect() {
+        val t = now()
+        redirects.addLast(t)
+        while (redirects.isNotEmpty() && t - redirects.first() >= BREAKER_WINDOW_MS) redirects.removeFirst()
+        if (redirects.size >= BREAKER_COUNT) {
+            redirects.clear()
+            pauseFor(BREAKER_PAUSE_MS)
+        }
+    }
+
+    /** Our Home reached the screen: it works, so forget earlier redirects. */
+    fun onHomeShown() {
+        redirects.clear()
+    }
+
     fun pauseFor(ms: Long) {
         pausedUntil = now() + ms
         inSession = false
@@ -28,7 +46,8 @@ class RedirectPolicy(private val now: () -> Long) {
 
     fun inLinkSession(): Boolean = inSession
 
-    private fun inGrace(): Boolean = inSession && now() - sessionStart < LINK_GRACE_MS
+    /** True while a link session is still inside its grace window (nothing to look at yet). */
+    fun inGrace(): Boolean = inSession && now() - sessionStart < LINK_GRACE_MS
 
     fun onAmazonHomeWindow(): Boolean {
         if (isPaused() || inGrace()) return false
@@ -40,5 +59,11 @@ class RedirectPolicy(private val now: () -> Long) {
         if (!inSession || viewId != AMAZON_HOME_TAB_ID || inGrace() || isPaused()) return false
         inSession = false
         return true
+    }
+
+    private companion object {
+        const val BREAKER_WINDOW_MS = 10_000L
+        const val BREAKER_COUNT = 3
+        const val BREAKER_PAUSE_MS = 300_000L
     }
 }

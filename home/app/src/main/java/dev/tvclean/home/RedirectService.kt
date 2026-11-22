@@ -16,8 +16,10 @@ class RedirectService : AccessibilityService() {
         override fun run() {
             val policy = Redirect.policy
             if (!policy.pollActive()) return
-            if (rootInActiveWindow?.packageName?.toString() == AMAZON_PKG) {
-                val id = focusedViewId(rootInActiveWindow, 0)
+            // Nothing can fire inside the grace window, so skip the tree walk.
+            val root = if (policy.inGrace()) null else rootInActiveWindow
+            if (root?.packageName?.toString() == AMAZON_PKG) {
+                val id = focusedViewId(root, 0)
                 if (policy.onLauncherFocus(id)) {
                     redirect("home tab poll")
                     updateEventTypes()
@@ -71,6 +73,7 @@ class RedirectService : AccessibilityService() {
 
     private fun redirect(reason: String) {
         Log.i(TAG, "redirect to Home ($reason)")
+        Redirect.policy.onRedirect()
         startActivity(
             Intent(this, HomeActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
