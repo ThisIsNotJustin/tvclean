@@ -5,7 +5,15 @@ from tvclean.adb import Adb
 from tvclean.apply import Outcome, undo_entry
 from tvclean.backup import list_backups
 from tvclean.debloat import read_applied, write_applied
-from tvclean.state import TRACKED_SETTINGS, DeviceState, load_state, read_state, setting_reads_back
+from tvclean.state import (
+    TRACKED_SETTINGS,
+    DeviceState,
+    list_disabled,
+    list_installed,
+    load_state,
+    read_state,
+    setting_reads_back,
+)
 
 UNDONE_STATUSES = ("done", "skipped-already")
 
@@ -68,7 +76,13 @@ def run_restore(adb: Adb, root: Path, name: str | None = None) -> list[Outcome]:
             outcomes.append(_restore_setting(adb, key, current, wanted))
 
     applied = read_applied(root) or {"tier": None, "features_off": [], "packages": []}
-    applied["packages"] = sorted(set(applied["packages"]) - restored)
+    remaining = set(applied["packages"]) - restored
+    if name is None:
+        # Restoring to stock: a recorded package that is installed and enabled is already at stock.
+        installed_now = list_installed(adb)
+        disabled_now = list_disabled(adb)
+        remaining = {p for p in remaining if not (p in installed_now and p not in disabled_now)}
+    applied["packages"] = sorted(remaining)
     if not applied["packages"]:
         applied["features_off"] = []
         applied["tier"] = None

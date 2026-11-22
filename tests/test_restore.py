@@ -142,3 +142,15 @@ def test_restore_to_stock_clears_features_off(tmp_path):
     run_restore(f, tmp_path)
 
     assert read_applied(tmp_path) == {"tier": None, "features_off": [], "packages": []}
+
+
+def test_restore_to_stock_drops_applied_packages_already_enabled(tmp_path):
+    f = device()
+    b1 = create_backup(f, tmp_path, datetime(2026, 11, 21, 9, 0, 0))
+    apply_entry(f, entry("com.a", "disable"), read_state(f), b1)
+    # com.b was recorded as applied but is installed and enabled now, so it is already at stock.
+    write_applied(tmp_path, {"tier": "safe", "features_off": ["alexa"], "packages": ["com.a", "com.b"]})
+
+    run_restore(f, tmp_path)
+
+    assert read_applied(tmp_path) == {"tier": None, "features_off": [], "packages": []}

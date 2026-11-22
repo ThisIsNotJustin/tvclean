@@ -35,12 +35,22 @@ def resolved_component(output: str) -> str | None:
     return lines[-1]
 
 
+LAUNCHER_CATEGORIES: tuple[str, ...] = (
+    "android.intent.category.LEANBACK_LAUNCHER",
+    "android.intent.category.LAUNCHER",
+)
+
+
 def launch_component(adb: Adb, pkg: str) -> str | None:
-    output = adb.shell(
-        "cmd package resolve-activity --brief -a android.intent.action.MAIN "
-        f"-c android.intent.category.LEANBACK_LAUNCHER {pkg}"
-    )
-    return resolved_component(output)
+    for category in LAUNCHER_CATEGORIES:
+        output = adb.shell(
+            "cmd package resolve-activity --brief -a android.intent.action.MAIN "
+            f"-c {category} {pkg}"
+        )
+        component = resolved_component(output)
+        if component is not None:
+            return component
+    return None
 
 
 def time_launch(adb: Adb, pkg: str, component: str) -> int | None:

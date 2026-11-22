@@ -110,3 +110,15 @@ def test_time_launch_waits_up_to_180s_for_am_start():
     metrics.time_launch(adb, "com.netflix.ninja", "com.netflix.ninja/.MainActivity")
     am_start = [t for cmd, t in seen if cmd.startswith("am start -W")]
     assert am_start == [180]
+
+
+def test_launch_component_falls_back_to_launcher_category():
+    leanback = (
+        "cmd package resolve-activity --brief -a android.intent.action.MAIN "
+        "-c android.intent.category.LEANBACK_LAUNCHER com.netflix.ninja"
+    )
+    adb = FakeAdb(
+        {"com.netflix.ninja": {"enabled": True, "path": "/data/app/n.apk"}},
+        raw_outputs={leanback: "No activity found\n"},
+    )
+    assert launch_component(adb, "com.netflix.ninja") == "com.netflix.ninja/.MainActivity"
